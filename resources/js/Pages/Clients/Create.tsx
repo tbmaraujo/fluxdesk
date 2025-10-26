@@ -8,10 +8,10 @@ import { Label } from '@/Components/ui/label';
 import { Separator } from '@/Components/ui/separator';
 import { Switch } from '@/Components/ui/switch';
 import { Textarea } from '@/Components/ui/textarea';
-import { User } from '@/types';
+import { PageProps } from '@/types';
 
 export default function Create() {
-  const { auth } = usePage().props as { auth: { user: User } };
+  const { auth } = usePage<PageProps>().props;
   const { data, setData, post, processing, errors } = useForm({
     name: '',
     trade_name: '',

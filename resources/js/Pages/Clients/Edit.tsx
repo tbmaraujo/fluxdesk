@@ -8,14 +8,14 @@ import { Label } from '@/Components/ui/label';
 import { Separator } from '@/Components/ui/separator';
 import { Switch } from '@/Components/ui/switch';
 import { Textarea } from '@/Components/ui/textarea';
-import { Client, User } from '@/types';
+import { Client, PageProps } from '@/types';
 
 interface Props {
   client: Client;
 }
 
 export default function Edit({ client }: Props) {
-  const { auth } = usePage().props as { auth: { user: User } };
+  const { auth } = usePage<PageProps>().props;
   const { data, setData, put, processing, errors } = useForm({
     name: client.name,
     trade_name: client.trade_name || '',

@@ -81,7 +81,7 @@ import {
   TooltipTrigger,
 } from '@/Components/ui/tooltip';
 import { formatCurrencyBRL, formatDateBR } from '@/lib/formatters';
-import { Contract, PageProps } from '@/types';
+import { Contract, ContractItem, ContractVersion, PageProps } from '@/types';
 
 const statusVariantMap: Record<string, 'success' | 'secondary'> = {
   Ativo: 'success',
@@ -717,7 +717,7 @@ export default function ShowContract({ auth, contract, hasAppointments }: ShowPr
                         </div>
                         {items && items.length > 0 ? (
                           <div className="space-y-2">
-                            {items.map((item, index) => (
+                            {items.map((item: ContractItem, index: number) => (
                               <div key={item.id || index} className="flex items-center justify-between rounded-lg border border-gray-200 bg-white p-3">
                                 <div className="flex-1">
                                   <p className="text-sm font-medium text-gray-900">{item.name || '-'}</p>
@@ -806,7 +806,7 @@ export default function ShowContract({ auth, contract, hasAppointments }: ShowPr
                   </TableHeader>
                   <TableBody>
                     {versions && versions.length > 0 ? (
-                      versions.map((version) => (
+                      versions.map((version: ContractVersion) => (
                         <TableRow key={version.id}>
                           <TableCell className="font-medium text-primary">
                             {version.version}

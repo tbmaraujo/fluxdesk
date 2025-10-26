@@ -33,13 +33,46 @@ interface CreateAddendumProps {
 type AddendumType = 'renewal' | 'during_term';
 type AdjustmentType = 'manual' | 'percentage';
 
+interface AddendumFormData {
+  addendum_type: AddendumType;
+  description: string;
+  start_date: string;
+  renewal_date: string;
+  expiration_term: string;
+  auto_renewal: boolean;
+  status: string;
+  adjustment_type: AdjustmentType;
+  adjustment_percentage: string;
+  monthly_value: string;
+  discount: string;
+  payment_day: string;
+  due_day: string;
+  payment_method: string;
+  billing_cycle: string;
+  closing_cycle: string;
+  billing_type: string;
+  contract_term: string;
+  included_hours: string;
+  extra_hour_value: string;
+  scope_included: string;
+  scope_excluded: string;
+  fair_use_policy: string;
+  visit_limit: string;
+  included_tickets: string;
+  extra_ticket_value: string;
+  rollover_active: boolean;
+  rollover_days_window: string;
+  rollover_hours_limit: string;
+  appointments_when_pending: boolean;
+}
+
 export default function CreateAddendum({ contract }: CreateAddendumProps) {
   // Aceitar tanto camelCase quanto snake_case do backend
   const activeVersion = contract.activeVersion || (contract as any).active_version;
   const [addendumType, setAddendumType] = useState<AddendumType>('renewal');
   const [adjustmentType, setAdjustmentType] = useState<AdjustmentType>('manual');
 
-  const { data, setData, post, processing, errors } = useForm({
+  const { data, setData, post, processing, errors } = useForm<AddendumFormData>({
     addendum_type: 'renewal' as AddendumType,
     description: '',
     start_date: '',

@@ -26,7 +26,7 @@ export default function AuthenticatedLayout({
     header,
 }: PropsWithChildren<AuthenticatedLayoutProps>) {
     // Get the user from the page props if not provided explicitly
-    const page = usePage().props;
+    const page = usePage<{ auth: { user: User } }>().props;
     const user = propUser || page.auth?.user;
 
     // State for mobile sidebar visibility
