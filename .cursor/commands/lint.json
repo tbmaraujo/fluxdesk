@@ -1,0 +1,8 @@
+{
+  "name": "Lint Frontend",
+  "description": "Executa o linter do frontend (ESLint)",
+  "command": "pnpm lint",
+  "cwd": "${workspaceFolder}",
+  "needsConfirmation": false
+}
+

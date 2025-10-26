@@ -1,0 +1,8 @@
+{
+  "name": "Run Migrations",
+  "description": "Executa as migrations do banco de dados",
+  "command": "php artisan migrate",
+  "cwd": "${workspaceFolder}",
+  "needsConfirmation": false
+}
+

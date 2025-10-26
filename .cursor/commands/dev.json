@@ -1,0 +1,8 @@
+{
+  "name": "Frontend Dev",
+  "description": "Inicia o servidor de desenvolvimento Vite (pnpm dev)",
+  "command": "pnpm dev",
+  "cwd": "${workspaceFolder}",
+  "needsConfirmation": false
+}
+

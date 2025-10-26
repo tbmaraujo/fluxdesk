@@ -1,0 +1,130 @@
+<?php
+
+namespace App\Jobs;
+
+use App\Models\TicketEmail;
+use App\Services\EmailInboundService;
+use Illuminate\Bus\Queueable;
+use Illuminate\Contracts\Queue\ShouldQueue;
+use Illuminate\Foundation\Bus\Dispatchable;
+use Illuminate\Queue\InteractsWithQueue;
+use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Log;
+
+class EmailIngestJob implements ShouldQueue
+{
+    use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
+
+    /**
+     * Número de vezes que o job pode tentar executar
+     */
+    public $tries = 3;
+
+    /**
+     * Timeout em segundos
+     */
+    public $timeout = 120;
+
+    /**
+     * Create a new job instance.
+     */
+    public function __construct(
+        public string $messageId,
+        public string $from,
+        public string $subject,
+        public ?string $to = null,
+        public ?string $s3ObjectKey = null,
+        public ?array $rawPayload = null,
+    ) {
+    }
+
+    /**
+     * Execute the job.
+     */
+    public function handle(EmailInboundService $emailInboundService): void
+    {
+        try {
+            // 1. Verificar idempotência - se já foi processado, pular
+            $existingEmail = TicketEmail::where('message_id', $this->messageId)->first();
+
+            if ($existingEmail) {
+                if ($existingEmail->isProcessed()) {
+                    Log::info('Email já processado anteriormente', [
+                        'message_id' => $this->messageId,
+                        'ticket_id' => $existingEmail->ticket_id,
+                    ]);
+                    return;
+                }
+
+                if ($existingEmail->isFailed()) {
+                    Log::warning('Reprocessando email que falhou anteriormente', [
+                        'message_id' => $this->messageId,
+                    ]);
+                }
+            } else {
+                // 2. Criar registro de TicketEmail
+                $existingEmail = TicketEmail::create([
+                    'message_id' => $this->messageId,
+                    'from' => $this->from,
+                    'to' => $this->to,
+                    'subject' => $this->subject,
+                    'raw' => $this->rawPayload ? json_encode($this->rawPayload) : null,
+                    's3_object_key' => $this->s3ObjectKey,
+                    'status' => 'queued',
+                    'received_at' => now(),
+                ]);
+            }
+
+            // 3. Processar email usando o serviço existente
+            if ($this->rawPayload) {
+                $result = $emailInboundService->processInboundEmail($this->rawPayload);
+
+                // 4. Atualizar registro como processado
+                $existingEmail->markAsProcessed($result['ticket_id'] ?? null);
+
+                Log::info('Email ingerido e processado com sucesso', [
+                    'message_id' => $this->messageId,
+                    'ticket_id' => $result['ticket_id'] ?? null,
+                    'action' => $result['action'] ?? 'unknown',
+                ]);
+            } else {
+                // Se não tiver payload completo, marcar como processado mas sem criar ticket
+                $existingEmail->markAsProcessed();
+                Log::warning('Email ingerido sem payload completo', [
+                    'message_id' => $this->messageId,
+                ]);
+            }
+        } catch (\Exception $e) {
+            Log::error('Erro ao processar email no job', [
+                'message_id' => $this->messageId,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            // Marcar como falho
+            if (isset($existingEmail)) {
+                $existingEmail->markAsFailed($e->getMessage());
+            }
+
+            // Re-lançar exceção para que o Laravel gerencie os retries
+            throw $e;
+        }
+    }
+
+    /**
+     * Handle a job failure.
+     */
+    public function failed(\Throwable $exception): void
+    {
+        Log::error('EmailIngestJob falhou após todas as tentativas', [
+            'message_id' => $this->messageId,
+            'error' => $exception->getMessage(),
+        ]);
+
+        // Tentar marcar como falho se o registro existir
+        $email = TicketEmail::where('message_id', $this->messageId)->first();
+        if ($email) {
+            $email->markAsFailed('Job failed after all retries: ' . $exception->getMessage());
+        }
+    }
+}

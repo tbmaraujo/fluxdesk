@@ -1,0 +1,104 @@
+# =========================
+# OS / IDE / Editor junk
+# =========================
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+*~
+.project
+.settings
+.buildpath
+/.idea
+/.vscode
+/.nova
+/.zed
+/.fleet
+
+# =========================
+# Node / Frontend
+# =========================
+/node_modules
+/public/build
+/public/hot
+npm-debug.log*
+yarn-error.log
+pnpm-debug.log*
+/coverage
+/reports
+
+# =========================
+# PHP / Composer / Test
+# =========================
+/vendor
+.phpunit.result.cache
+/.phpunit.cache
+/.phpactor.json
+/.php-cs-fixer.cache
+
+# =========================
+# Logs
+# =========================
+*.log
+/storage/logs/*
+!storage/logs/.gitignore
+
+# =========================
+# Laravel storage & cache
+# =========================
+/bootstrap/cache/*
+/storage/app/*
+/storage/framework/cache/*
+/storage/framework/sessions/*
+/storage/framework/testing/*
+/storage/framework/views/*
+!storage/app/.gitignore
+!storage/app/public/.gitignore
+!storage/framework/.gitignore
+!storage/framework/cache/.gitignore
+
+# Se usar "php artisan storage:link"
+# (o symlink public/storage não precisa ir pro git)
+public/storage
+
+# =========================
+# Ambientes / Segredos
+# =========================
+.env
+.env.*
+!.env.example
+.env.backup
+.env.production
+
+# =========================
+# App / Proxy / Extras
+# =========================
+/auth.json
+/storage/*.key
+
+# Banco local SQLite (se usar)
+database/*.sqlite
+
+# Direnv / Vercel / outros
+.envrc
+.vercel
+
+# =========================
+# Cursor / Claude
+# =========================
+# NÃO ignore estes: queremos versionar as regras do agente:
+# CLAUDE.md e .cursorrules devem ser COMMITADOS
+# Se o Cursor gerar algum estado temporário (raro), ignore aqui:
+# .cursor/tmp/
+# .cursor/history/
+
+# =========================
+# Homestead / Legacy
+# =========================
+Homestead.json
+Homestead.yaml
+
+# =========================
+# Cache de ferramentas JS
+# =========================
+.eslintcache

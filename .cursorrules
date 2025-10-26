@@ -1,0 +1,56 @@
+#Cursor Rules — Fluxdesk
+## Objetivo do agente
+- Ajudar a evoluir um projeto **Laravel 11 + Inertia (React+TS) + Tailwind + shadcn/ui + PostgreSQL + Redis**.
+- Responder **em PT-BR**, mantendo **nomes de código em EN-US**.
+- Fornecer **diffs e justificativas curtas** antes de alterar arquivos.
+
+## Padrões de arquitetura
+- **SPA com Inertia** (não usar React Server Components).
+- **Controllers finos**; regras de negócio em **Actions/Services**.
+- **Validação** obrigatória via **Form Requests**.
+- **Autorização** via **Policies/Gates** para rotas sensíveis.
+- **Consulta**: evitar N+1 com eager loading; usar DTOs/Repositories se necessário.
+
+## Estrutura esperada
+- Backend: `app/Actions`, `app/Services`, `app/Http/{Controllers,Requests,Middleware}`, `app/Models`
+- Frontend: `resources/js/{Pages,Layouts,Components,lib}`
+- Rotas: `routes/{web.php,api.php}`
+
+## Qualidade e estilo
+- **PHP**: PSR-12; PHP-CS-Fixer com `array_syntax=short`, `ordered_imports=alpha`, `no_unused_imports`.
+- **JS/TS**: ESLint + Prettier (TypeScript-first).
+- **Acessibilidade**: aplicar WAI-ARIA em componentes interativos.
+- **Commits**: Conventional Commits (`feat`, `fix`, `chore`, `docs`, `test`, `refactor`).
+
+## E-mail e filas
+- **Mailer:** Amazon SES (**us-east-2**).
+- **Envio:** sempre **assíncrono** via Redis queues (`queue:work`).
+- **Inbound:** se criado fluxo de abertura por e-mail, usar SES Receipt Rule → S3 e job assíncrono; garantir **idempotência** por `Message-ID`.
+
+## Regras para criação de funcionalidades
+- Para cada CRUD, gerar **Migration + Model + Policy + Form Request + Controller + Page Inertia + Routes**.
+- Componentes UI devem ser **reutilizáveis** (shadcn/ui) e **tipados** (TS).
+- Ao propor dependência nova, **explicar por que** e **impacto** (bundle, segurança, licenças).
+
+## Execução de comandos
+- Usar os scripts do projeto:
+  - Backend: `php artisan serve`, `php artisan migrate`, `php artisan queue:work`, `php artisan test`
+  - Frontend: `pnpm dev`, `pnpm build`, `pnpm lint`, `pnpm test`
+- Em produção, **não** sugerir Octane/Horizon; usar **Supervisor/Systemd** para `queue:work`.
+
+## Segurança
+- Nunca expor segredos, tokens ou `.env`.
+- Sanitizar entradas; não inserir dados sensíveis em logs.
+- Revisar permissões/policies em novas rotas.
+
+## Não fazer
+- ❌ Alterar tabelas sem **migration**.
+- ❌ `migrate:fresh` em produção.
+- ❌ Criar lógica pesada em Controllers/Views.
+- ❌ Introduzir libs de UI duplicadas ou styles conflitantes.
+
+## Como responder
+- **Formato de resposta**: objetivo, com trechos de código prontos para colar.
+- **Antes de escrever muito código**, validar suposições (modelo de dados, rotas, nomes) em bullets.
+- **Ao editar arquivo**, mostrar: caminho, trechos alterados, motivo e impacto.
+

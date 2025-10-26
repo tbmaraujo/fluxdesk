@@ -1,0 +1,8 @@
+{
+  "name": "Test Backend",
+  "description": "Executa os testes do backend (PHPUnit)",
+  "command": "php artisan test",
+  "cwd": "${workspaceFolder}",
+  "needsConfirmation": false
+}
+

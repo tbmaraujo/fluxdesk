@@ -1,0 +1,8 @@
+{
+  "name": "Queue Worker",
+  "description": "Inicia o worker de filas (queue:work)",
+  "command": "php artisan queue:work",
+  "cwd": "${workspaceFolder}",
+  "needsConfirmation": false
+}
+

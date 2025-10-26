@@ -1,0 +1,218 @@
+################################################################################
+# FLUXDESK - GitHub Actions Workflow (CI/CD)
+# Arquivo: .github/workflows/deploy.yml
+# Descrição: Deploy automático ao fazer push na branch main
+################################################################################
+
+name: Deploy FLUXDESK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: # Permitir deploy manual
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    
+    steps:
+      # 1. Checkout do código
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Histórico completo para versionamento
+      
+      # 2. Deploy via SSH
+      - name: Deploy to EC2
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USERNAME }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script_stop: true
+          script: |
+            echo "🚀 Iniciando deploy do FLUXDESK..."
+            cd /home/ubuntu
+            sudo bash install_and_deploy.sh deploy
+            
+            echo "🩺 Executando health check..."
+            sudo bash install_and_deploy.sh smoke || {
+              echo "❌ Health check falhou! Executando rollback..."
+              sudo bash install_and_deploy.sh rollback
+              exit 1
+            }
+            
+            echo "✅ Deploy concluído com sucesso!"
+      
+      # 3. Notificação de sucesso (opcional)
+      - name: Notify Success
+        if: success()
+        run: |
+          echo "✅ Deploy realizado com sucesso!"
+          # Adicionar integração com Slack/Discord aqui se desejar
+      
+      # 4. Notificação de falha (opcional)
+      - name: Notify Failure
+        if: failure()
+        run: |
+          echo "❌ Deploy falhou! Rollback executado."
+          # Adicionar integração com Slack/Discord aqui se desejar
+
+################################################################################
+# CONFIGURAÇÃO DE SECRETS NO GITHUB
+#
+# Vá em: Settings → Secrets and variables → Actions → New repository secret
+#
+# Criar os seguintes secrets:
+#
+# 1. EC2_HOST
+#    Valor: IP ou domínio do servidor EC2
+#    Exemplo: 54.123.45.67 ou ec2.fluxdesk.com.br
+#
+# 2. EC2_USERNAME
+#    Valor: ubuntu (ou outro usuário SSH)
+#
+# 3. EC2_SSH_KEY
+#    Valor: Chave privada SSH completa
+#    Obter: cat ~/.ssh/id_rsa (da máquina que tem acesso ao EC2)
+#    Incluir desde "-----BEGIN" até "-----END"
+#
+################################################################################
+# CONFIGURAÇÃO DO SERVIDOR EC2
+#
+# 1. Garantir que o script está no servidor:
+#    scp Setup/install_and_deploy.sh ubuntu@SEU_IP:/home/ubuntu/
+#    ssh ubuntu@SEU_IP
+#    chmod +x install_and_deploy.sh
+#
+# 2. Adicionar chave pública do GitHub ao servidor:
+#    ssh-keygen -t ed25519 -C "github-actions"
+#    cat ~/.ssh/id_ed25519.pub >> ~/.ssh/authorized_keys
+#    # Copiar id_ed25519 (privada) para secret EC2_SSH_KEY
+#
+# 3. Testar acesso:
+#    ssh -i chave.pem ubuntu@SEU_IP "echo 'Conectado!'"
+#
+################################################################################
+# WORKFLOW ALTERNATIVO: Build Local e Deploy Binário
+################################################################################
+# Se quiser fazer build na Action (sem construir no servidor):
+
+# jobs:
+#   build:
+#     name: Build Assets
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       
+#       - name: Setup Node.js
+#         uses: actions/setup-node@v4
+#         with:
+#           node-version: '20'
+#           cache: 'npm'
+#       
+#       - name: Install dependencies
+#         run: npm ci
+#       
+#       - name: Build assets
+#         run: npm run build
+#       
+#       - name: Upload artifacts
+#         uses: actions/upload-artifact@v3
+#         with:
+#           name: build
+#           path: public/build
+#   
+#   deploy:
+#     name: Deploy to Production
+#     needs: build
+#     runs-on: ubuntu-latest
+#     steps:
+#       - uses: actions/checkout@v4
+#       
+#       - name: Download artifacts
+#         uses: actions/download-artifact@v3
+#         with:
+#           name: build
+#           path: public/build
+#       
+#       - name: Deploy via rsync
+#         uses: burnett01/rsync-deployments@6.0.0
+#         with:
+#           switches: -avzr --delete
+#           path: ./
+#           remote_path: /var/www/fluxdesk/tmp-deploy
+#           remote_host: ${{ secrets.EC2_HOST }}
+#           remote_user: ${{ secrets.EC2_USERNAME }}
+#           remote_key: ${{ secrets.EC2_SSH_KEY }}
+#       
+#       - name: Activate release
+#         uses: appleboy/ssh-action@v1.0.0
+#         with:
+#           host: ${{ secrets.EC2_HOST }}
+#           username: ${{ secrets.EC2_USERNAME }}
+#           key: ${{ secrets.EC2_SSH_KEY }}
+#           script: |
+#             cd /var/www/fluxdesk
+#             RELEASE_DIR="releases/$(date +%Y-%m-%d-%H%M%S)"
+#             mv tmp-deploy "$RELEASE_DIR"
+#             ln -sfn "$RELEASE_DIR" current
+#             php current/artisan migrate --force
+#             php current/artisan config:cache
+#             systemctl reload nginx
+
+################################################################################
+# NOTIFICAÇÕES SLACK (Opcional)
+################################################################################
+# Adicionar ao final do workflow:
+
+# - name: Slack Notification
+#   uses: 8398a7/action-slack@v3
+#   with:
+#     status: ${{ job.status }}
+#     text: Deploy do FLUXDESK ${{ job.status == 'success' && 'realizado com sucesso!' || 'FALHOU!' }}
+#     webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+#   if: always()
+
+################################################################################
+# TESTE LOCAL DO WORKFLOW
+################################################################################
+# Usar 'act' para testar localmente:
+#
+# 1. Instalar: https://github.com/nektos/act
+# 2. Executar: act -s EC2_HOST=... -s EC2_USERNAME=... -s EC2_SSH_KEY="..."
+#
+################################################################################
+
+################################################################################
+# ROLLBACK MANUAL VIA GITHUB
+################################################################################
+# Criar arquivo .github/workflows/rollback.yml:
+
+# name: Rollback FLUXDESK
+# on: workflow_dispatch
+# jobs:
+#   rollback:
+#     runs-on: ubuntu-latest
+#     steps:
+#       - name: Execute Rollback
+#         uses: appleboy/ssh-action@v1.0.0
+#         with:
+#           host: ${{ secrets.EC2_HOST }}
+#           username: ${{ secrets.EC2_USERNAME }}
+#           key: ${{ secrets.EC2_SSH_KEY }}
+#           script: |
+#             sudo bash /home/ubuntu/install_and_deploy.sh rollback
+
+################################################################################
+# PROTEÇÃO DE BRANCH (Recomendado)
+################################################################################
+# Settings → Branches → Add rule:
+# - Branch name: main
+# - Require pull request reviews before merging
+# - Require status checks to pass (quando tiver testes)
+# - Include administrators: ✓
+#
+################################################################################

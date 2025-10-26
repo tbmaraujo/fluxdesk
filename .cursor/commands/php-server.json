@@ -1,0 +1,8 @@
+{
+  "name": "PHP Server",
+  "description": "Inicia o servidor Laravel local na porta 8000",
+  "command": "php artisan serve --host=127.0.0.1 --port=8000",
+  "cwd": "${workspaceFolder}",
+  "needsConfirmation": false
+}
+
