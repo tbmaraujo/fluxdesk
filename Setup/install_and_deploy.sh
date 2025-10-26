@@ -16,7 +16,7 @@ trap 'echo "[ERR] Falha na linha $LINENO"; exit 1' ERR
 
 APP_NAME="fluxdesk"
 DOMAIN="app.fluxdesk.com.br"
-REPO_URL="git@github.com:tbmaraujo/Sistema-Chamados.git"
+REPO_URL="git@github.com:tbmaraujo/fluxdesk.git"
 BRANCH="main"
 PHP_VERSION="8.3"
 NODE_VERSION="20"
@@ -143,6 +143,12 @@ install_packages() {
     log "Instalando Node.js ${NODE_VERSION} LTS..."
     curl -fsSL https://deb.nodesource.com/setup_${NODE_VERSION}.x | bash -
     apt-get install -y -qq nodejs
+
+    # pnpm (gerenciador de pacotes do projeto)
+    log "Habilitando pnpm via corepack..."
+    corepack enable
+    corepack prepare pnpm@latest --activate
+    log "✅ pnpm instalado: $(pnpm --version)"
 
     # Nginx
     log "Instalando Nginx..."
@@ -497,21 +503,21 @@ deploy() {
         err "Falha no composer install"
     }
 
-    # NPM build resiliente
+    # PNPM build resiliente (projeto usa pnpm, não npm)
     if [ "${BUILD_ON_SERVER}" = "true" ]; then
-        log "Instalando dependências NPM..."
-        npm ci 2>&1 | tee -a "${DEPLOY_LOG}" || {
-            warn "npm ci falhou, tentando com --legacy-peer-deps..."
-            npm ci --legacy-peer-deps 2>&1 | tee -a "${DEPLOY_LOG}" || {
-                err "Falha no npm ci mesmo com --legacy-peer-deps"
+        log "Instalando dependências com pnpm..."
+        pnpm install --frozen-lockfile 2>&1 | tee -a "${DEPLOY_LOG}" || {
+            warn "pnpm install --frozen-lockfile falhou, tentando sem frozen..."
+            pnpm install 2>&1 | tee -a "${DEPLOY_LOG}" || {
+                err "Falha na instalação com pnpm"
             }
         }
         
         log "Compilando assets (Vite)..."
-        npm run build 2>&1 | tee -a "${DEPLOY_LOG}" || {
-            warn "npm run build falhou, tentando com --force..."
-            npm run build -- --force 2>&1 | tee -a "${DEPLOY_LOG}" || {
-                err "Falha no npm run build mesmo com --force"
+        pnpm run build 2>&1 | tee -a "${DEPLOY_LOG}" || {
+            warn "pnpm run build falhou, tentando com --force..."
+            pnpm run build -- --force 2>&1 | tee -a "${DEPLOY_LOG}" || {
+                err "Falha no pnpm run build mesmo com --force"
             }
         }
     fi
