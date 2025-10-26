@@ -218,6 +218,14 @@ export interface Service {
         name: string;
     };
     priorities?: Priority[];
+    // Campos adicionados para a tela principal
+    tickets_count?: number;
+    is_active?: boolean;
+    sla_info?: string;
+    badges?: Array<{
+        label: string;
+        variant: 'success' | 'warning' | 'info' | 'secondary' | 'red' | 'gray' | 'orange' | 'purple';
+    }>;
 }
 
 export type PageProps<

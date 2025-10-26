@@ -15,9 +15,53 @@ class ServiceController extends Controller
      */
     public function index(): Response
     {
-        $services = Service::where('tenant_id', auth()->user()->tenant_id)
-            ->with('ticketType')
-            ->get();
+        $tenantId = auth()->user()->tenant_id;
+        
+        $services = Service::where('tenant_id', $tenantId)
+            ->with(['ticketType', 'priorities'])
+            ->withCount([
+                'tickets as tickets_count' => function ($query) {
+                    $query->whereMonth('created_at', now()->month)
+                        ->whereYear('created_at', now()->year);
+                }
+            ])
+            ->get()
+            ->map(function ($service) {
+                // Determinar o status da mesa (sempre ativa por padrão)
+                $service->is_active = true;
+                
+                // Adicionar informações de SLA baseado nas prioridades configuradas
+                if ($service->priorities && $service->priorities->isNotEmpty()) {
+                    // Pegar a prioridade com menor tempo de resposta (mais crítica)
+                    $fastestPriority = $service->priorities->sortBy('response_sla_time')->first();
+                    
+                    // Converter minutos para horas
+                    $responseHours = round($fastestPriority->response_sla_time / 60, 1);
+                    
+                    if ($responseHours < 1) {
+                        $service->sla_info = sprintf('%d min resposta', $fastestPriority->response_sla_time);
+                    } else {
+                        $service->sla_info = sprintf('%.1fh resposta', $responseHours);
+                    }
+                } else {
+                    $service->sla_info = 'SLA: não configurado';
+                }
+                
+                // Determinar badges de status/configuração
+                $service->badges = [];
+                
+                if ($service->review_type) {
+                    if ($service->review_type === 'requester') {
+                        $service->badges[] = ['label' => 'Auto-aprovação', 'variant' => 'info'];
+                    } elseif ($service->review_type === 'permission') {
+                        $service->badges[] = ['label' => 'Aprovação Pendente', 'variant' => 'warning'];
+                    } elseif ($service->review_type === 'both') {
+                        $service->badges[] = ['label' => 'Revisão Configurada', 'variant' => 'success'];
+                    }
+                }
+                
+                return $service;
+            });
 
         return Inertia::render('Settings/Services/Index', [
             'services' => $services,
