@@ -2,7 +2,7 @@
 
 ## 🎯 Formato de E-mail para Tickets
 
-O sistema aceita **dois formatos** para identificar o tenant:
+O sistema aceita **três formatos** para identificar o tenant:
 
 ### Opção 1: ID do Tenant (mais simples)
 ```
@@ -16,14 +16,26 @@ O sistema aceita **dois formatos** para identificar o tenant:
 123@tickets.fluxdesk.com.br
 ```
 
-### Opção 2: CNPJ do Tenant (mais intuitivo)
+### Opção 2: SLUG do Tenant (mais intuitivo) ⭐ RECOMENDADO
+```
+{slug}@tickets.fluxdesk.com.br
+```
+
+**Exemplo:**
+```
+42262851012132@tickets.fluxdesk.com.br
+sincro8@tickets.fluxdesk.com.br
+empresa-abc@tickets.fluxdesk.com.br
+```
+
+### Opção 3: CNPJ do Tenant
 ```
 {cnpj}@tickets.fluxdesk.com.br
 ```
 
 **Exemplo:**
 ```
-42262851012132@tickets.fluxdesk.com.br
+12873694000150@tickets.fluxdesk.com.br
 12345678000199@tickets.fluxdesk.com.br
 ```
 
@@ -58,10 +70,16 @@ O sistema detecta automaticamente qual formato foi usado:
    5@tickets.fluxdesk.com.br → Busca tenant com id = 5
    ```
 
-2. **Número grande (> 10 dígitos):** Trata como **CNPJ/documento**
+2. **Texto ou número grande:** Busca por **SLUG primeiro**, depois CNPJ/documento
    ```
-   42262851012132@tickets.fluxdesk.com.br → Busca tenant onde document = '42262851012132'
+   42262851012132@tickets.fluxdesk.com.br → Busca tenant onde slug = '42262851012132'
+   sincro8@tickets.fluxdesk.com.br → Busca tenant onde slug = 'sincro8'
    ```
+
+3. **Prioridade de busca:**
+   - 1º: `slug`
+   - 2º: `cnpj`
+   - 3º: `document`
 
 ---
 
@@ -74,9 +92,16 @@ Assunto: Problema no sistema
 Corpo: Descrição do problema
 ```
 
-### Criar ticket usando CNPJ:
+### Criar ticket usando SLUG:
 ```
 Para: 42262851012132@tickets.fluxdesk.com.br
+Assunto: Problema no sistema
+Corpo: Descrição do problema
+```
+
+### Criar ticket usando SLUG com texto:
+```
+Para: sincro8@tickets.fluxdesk.com.br
 Assunto: Problema no sistema
 Corpo: Descrição do problema
 ```
