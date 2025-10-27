@@ -1,0 +1,34 @@
+# ================================================
+# CONFIGURAÇÃO DE E-MAIL INBOUND (Recebimento)
+# ================================================
+# Copie estas linhas para o seu arquivo .env
+
+# Secret do Webhook (gere com: openssl rand -base64 32)
+SES_WEBHOOK_SECRET=LLtC0ZrotUnA9KspRKKkgjlTJT1RjiuAG7DZ9Q1MXRg=
+
+# ARN do SNS Topic (obtenha após criar o Topic na AWS)
+SES_SNS_TOPIC_ARN=arn:aws:sns:us-east-2:123456789012:FluxdeskSES-Inbound-Emails
+
+# Bucket S3 para armazenar e-mails
+AWS_SES_S3_BUCKET=fluxdesk-emails-inbound
+
+# Região AWS
+AWS_DEFAULT_REGION=us-east-2
+AWS_BUCKET=fluxdesk-emails-inbound
+
+# Queue (obrigatório)
+QUEUE_CONNECTION=redis
+
+# ================================================
+# AWS CREDENTIALS
+# ================================================
+# PRODUÇÃO (EC2): NÃO configure (use IAM Role)
+# DESENVOLVIMENTO: Configure suas credenciais
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+
+# ================================================
+# DOCUMENTAÇÃO COMPLETA
+# ================================================
+# Ver: Setup/EMAIL-INBOUND-README.md
+

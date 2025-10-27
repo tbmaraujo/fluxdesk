@@ -227,6 +227,12 @@ Route::middleware(["auth", "prevent.superadmin", "identify.tenant"])->group(func
         ContractDisplacementController::class,
         "store",
     ])->name("contracts.displacements.store");
+
+    // Report routes
+    Route::get("/reports", [
+        \App\Http\Controllers\ReportController::class,
+        "index",
+    ])->name("reports.index");
     Route::delete("/contracts/{contract}/displacements/{displacement}", [
         ContractDisplacementController::class,
         "destroy",

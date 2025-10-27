@@ -739,41 +739,423 @@ run_all() {
 }
 
 # ============================
-# MENU PRINCIPAL
+# FUNÇÕES DE MANUTENÇÃO
+# ============================
+
+# Apenas migrar banco (sem deploy)
+run_migrate() {
+    log "Executando migrações do banco de dados..."
+    
+    if [ ! -L "${CURRENT_DIR}" ] || [ ! -d "${CURRENT_DIR}" ]; then
+        err "Nenhuma release ativa encontrada!"
+    fi
+    
+    cd ${CURRENT_DIR}
+    
+    validate_env
+    check_database_connection || err "Não foi possível conectar ao banco"
+    
+    php artisan migrate --force
+    
+    log "✅ Migrações executadas com sucesso!"
+}
+
+# Limpar todos os caches
+clear_cache() {
+    log "Limpando caches da aplicação..."
+    
+    if [ ! -L "${CURRENT_DIR}" ] || [ ! -d "${CURRENT_DIR}" ]; then
+        err "Nenhuma release ativa encontrada!"
+    fi
+    
+    cd ${CURRENT_DIR}
+    
+    php artisan optimize:clear
+    php artisan config:clear
+    php artisan route:clear
+    php artisan view:clear
+    php artisan event:clear
+    php artisan cache:clear
+    
+    log "✅ Todos os caches limpos!"
+}
+
+# Recriar caches otimizados
+optimize_cache() {
+    log "Otimizando caches..."
+    
+    if [ ! -L "${CURRENT_DIR}" ] || [ ! -d "${CURRENT_DIR}" ]; then
+        err "Nenhuma release ativa encontrada!"
+    fi
+    
+    cd ${CURRENT_DIR}
+    
+    php artisan config:cache
+    php artisan view:cache
+    php artisan event:cache
+    # NÃO usar route:cache com Inertia.js
+    
+    log "✅ Caches otimizados!"
+}
+
+# Restart de serviços
+restart_services() {
+    log "Reiniciando serviços..."
+    
+    systemctl restart php${PHP_VERSION}-fpm
+    log "✅ PHP-FPM reiniciado"
+    
+    systemctl restart nginx
+    log "✅ Nginx reiniciado"
+    
+    if systemctl is-active --quiet supervisor; then
+        supervisorctl restart all
+        log "✅ Workers reiniciados"
+    fi
+    
+    log "✅ Todos os serviços reiniciados!"
+}
+
+# Ver logs
+show_logs() {
+    if [ ! -L "${CURRENT_DIR}" ] || [ ! -d "${CURRENT_DIR}" ]; then
+        err "Nenhuma release ativa encontrada!"
+    fi
+    
+    echo ""
+    echo "┌────────────────────────────────────────┐"
+    echo "│  Escolha qual log visualizar:         │"
+    echo "└────────────────────────────────────────┘"
+    echo ""
+    echo "  1) Laravel (aplicação)"
+    echo "  2) Nginx (acesso)"
+    echo "  3) Nginx (erros)"
+    echo "  4) PHP-FPM (erros)"
+    echo "  5) Worker (queue)"
+    echo "  6) Voltar"
+    echo ""
+    read -p "Opção: " LOG_OPTION
+    
+    case "${LOG_OPTION}" in
+        1)
+            tail -n 100 -f ${SHARED_DIR}/storage/logs/laravel.log 2>/dev/null || echo "Log não encontrado"
+            ;;
+        2)
+            tail -n 100 -f /var/log/nginx/${APP_NAME}_access.log 2>/dev/null || echo "Log não encontrado"
+            ;;
+        3)
+            tail -n 100 -f /var/log/nginx/${APP_NAME}_error.log 2>/dev/null || echo "Log não encontrado"
+            ;;
+        4)
+            tail -n 100 -f /var/log/php${PHP_VERSION}-fpm.log 2>/dev/null || echo "Log não encontrado"
+            ;;
+        5)
+            tail -n 100 -f ${SHARED_DIR}/storage/logs/worker.log 2>/dev/null || echo "Log não encontrado"
+            ;;
+        6)
+            return
+            ;;
+        *)
+            warn "Opção inválida"
+            ;;
+    esac
+}
+
+# Backup do banco de dados
+backup_database() {
+    log "Criando backup do banco de dados..."
+    
+    if [ ! -f "${SHARED_DIR}/.env" ]; then
+        err ".env não encontrado"
+    fi
+    
+    # Ler credenciais do .env
+    DB_HOST=$(grep "^DB_HOST=" ${SHARED_DIR}/.env | cut -d '=' -f 2)
+    DB_PORT=$(grep "^DB_PORT=" ${SHARED_DIR}/.env | cut -d '=' -f 2)
+    DB_DATABASE=$(grep "^DB_DATABASE=" ${SHARED_DIR}/.env | cut -d '=' -f 2)
+    DB_USERNAME=$(grep "^DB_USERNAME=" ${SHARED_DIR}/.env | cut -d '=' -f 2)
+    
+    BACKUP_DIR="${APP_DIR}/backups"
+    mkdir -p ${BACKUP_DIR}
+    
+    BACKUP_FILE="${BACKUP_DIR}/backup-$(date +%Y%m%d-%H%M%S).sql"
+    
+    export PGPASSWORD=$(grep "^DB_PASSWORD=" ${SHARED_DIR}/.env | cut -d '=' -f 2)
+    
+    pg_dump -h ${DB_HOST} -p ${DB_PORT} -U ${DB_USERNAME} -d ${DB_DATABASE} > ${BACKUP_FILE}
+    
+    unset PGPASSWORD
+    
+    gzip ${BACKUP_FILE}
+    
+    log "✅ Backup criado: ${BACKUP_FILE}.gz"
+}
+
+# Atualizar apenas dependências (sem deploy completo)
+update_dependencies() {
+    log "Atualizando dependências..."
+    
+    if [ ! -L "${CURRENT_DIR}" ] || [ ! -d "${CURRENT_DIR}" ]; then
+        err "Nenhuma release ativa encontrada!"
+    fi
+    
+    cd ${CURRENT_DIR}
+    
+    log "Atualizando dependências PHP..."
+    COMPOSER_MEMORY_LIMIT=-1 composer install --no-dev --optimize-autoloader
+    
+    log "Atualizando dependências Node..."
+    pnpm install --frozen-lockfile
+    
+    log "✅ Dependências atualizadas!"
+}
+
+# Executar seeders
+run_seeders() {
+    log "Executando seeders..."
+    
+    if [ ! -L "${CURRENT_DIR}" ] || [ ! -d "${CURRENT_DIR}" ]; then
+        err "Nenhuma release ativa encontrada!"
+    fi
+    
+    cd ${CURRENT_DIR}
+    
+    warn "⚠️  ATENÇÃO: Seeders podem sobrescrever dados existentes!"
+    read -p "Deseja continuar? (s/N): " CONFIRM
+    
+    if [[ ! "${CONFIRM}" =~ ^[Ss]$ ]]; then
+        warn "Operação cancelada"
+        return
+    fi
+    
+    php artisan db:seed --force
+    
+    log "✅ Seeders executados!"
+}
+
+# Status dos serviços
+show_status() {
+    log "Status dos serviços:\n"
+    
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📦 Serviços do Sistema"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    systemctl is-active --quiet nginx && echo "✅ Nginx: RODANDO" || echo "❌ Nginx: PARADO"
+    systemctl is-active --quiet php${PHP_VERSION}-fpm && echo "✅ PHP-FPM: RODANDO" || echo "❌ PHP-FPM: PARADO"
+    systemctl is-active --quiet supervisor && echo "✅ Supervisor: RODANDO" || echo "⚠️  Supervisor: PARADO"
+    systemctl is-active --quiet postgresql 2>/dev/null && echo "✅ PostgreSQL: RODANDO" || echo "⚠️  PostgreSQL: Remoto/Não instalado"
+    systemctl is-active --quiet redis-server 2>/dev/null && echo "✅ Redis: RODANDO" || echo "⚠️  Redis: Não instalado"
+    
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📂 Releases"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    if [ -L "${CURRENT_DIR}" ]; then
+        CURRENT_RELEASE=$(readlink ${CURRENT_DIR} | xargs basename)
+        echo "➡️  Ativa: ${CURRENT_RELEASE}"
+    else
+        echo "⚠️  Nenhuma release ativa"
+    fi
+    
+    if [ -d "${RELEASES_DIR}" ]; then
+        TOTAL_RELEASES=$(ls -1 ${RELEASES_DIR} 2>/dev/null | wc -l)
+        echo "📊 Total: ${TOTAL_RELEASES} releases"
+    fi
+    
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "💾 Uso de Disco"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    if [ -d "${APP_DIR}" ]; then
+        du -sh ${APP_DIR} 2>/dev/null | awk '{print "📁 Aplicação: " $1}'
+        du -sh ${RELEASES_DIR} 2>/dev/null | awk '{print "📦 Releases: " $1}'
+        du -sh ${SHARED_DIR}/storage 2>/dev/null | awk '{print "💾 Storage: " $1}'
+    fi
+    
+    echo ""
+}
+
+# ============================
+# MENU INTERATIVO
+# ============================
+
+show_interactive_menu() {
+    while true; do
+        clear
+        echo ""
+        echo "╔═══════════════════════════════════════════════════════════╗"
+        echo "║                                                           ║"
+        echo "║              🚀 FLUXDESK - Gerenciador                    ║"
+        echo "║         Laravel 11 + Inertia + React + PostgreSQL        ║"
+        echo "║                                                           ║"
+        echo "╚═══════════════════════════════════════════════════════════╝"
+        echo ""
+        echo "┌───────────────────────────────────────────────────────────┐"
+        echo "│  📋 INSTALAÇÃO & DEPLOY                                   │"
+        echo "└───────────────────────────────────────────────────────────┘"
+        echo ""
+        echo "  1)  🆕 Instalar em novo servidor (completo)"
+        echo "  2)  🚀 Atualizar versão (deploy)"
+        echo "  3)  🔄 Rollback (versão anterior)"
+        echo ""
+        echo "┌───────────────────────────────────────────────────────────┐"
+        echo "│  🔧 MANUTENÇÃO                                            │"
+        echo "└───────────────────────────────────────────────────────────┘"
+        echo ""
+        echo "  4)  💾 Migrar banco de dados"
+        echo "  5)  🧹 Limpar cache"
+        echo "  6)  ⚡ Otimizar cache (rebuild)"
+        echo "  7)  🔄 Restart de serviços"
+        echo "  8)  📦 Atualizar dependências"
+        echo ""
+        echo "┌───────────────────────────────────────────────────────────┐"
+        echo "│  📊 MONITORAMENTO                                         │"
+        echo "└───────────────────────────────────────────────────────────┘"
+        echo ""
+        echo "  9)  ✅ Health check (smoke test)"
+        echo "  10) 📈 Status dos serviços"
+        echo "  11) 📝 Ver logs"
+        echo ""
+        echo "┌───────────────────────────────────────────────────────────┐"
+        echo "│  🛠️  UTILITÁRIOS                                          │"
+        echo "└───────────────────────────────────────────────────────────┘"
+        echo ""
+        echo "  12) 💾 Backup do banco"
+        echo "  13) 🌱 Executar seeders"
+        echo "  14) 🧹 Limpar releases antigas"
+        echo ""
+        echo "  0)  ❌ Sair"
+        echo ""
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        read -p "Escolha uma opção: " OPTION
+        echo ""
+        
+        case "${OPTION}" in
+            1)
+                if ! check_github_auth; then
+                    err "Falha na verificação de autenticação GitHub"
+                fi
+                run_all
+                read -p "Pressione ENTER para continuar..."
+                ;;
+            2)
+                check_github_auth
+                deploy
+                smoke
+                read -p "Pressione ENTER para continuar..."
+                ;;
+            3)
+                rollback
+                smoke
+                read -p "Pressione ENTER para continuar..."
+                ;;
+            4)
+                run_migrate
+                read -p "Pressione ENTER para continuar..."
+                ;;
+            5)
+                clear_cache
+                read -p "Pressione ENTER para continuar..."
+                ;;
+            6)
+                clear_cache
+                optimize_cache
+                read -p "Pressione ENTER para continuar..."
+                ;;
+            7)
+                restart_services
+                read -p "Pressione ENTER para continuar..."
+                ;;
+            8)
+                update_dependencies
+                read -p "Pressione ENTER para continuar..."
+                ;;
+            9)
+                smoke
+                read -p "Pressione ENTER para continuar..."
+                ;;
+            10)
+                show_status
+                read -p "Pressione ENTER para continuar..."
+                ;;
+            11)
+                show_logs
+                ;;
+            12)
+                backup_database
+                read -p "Pressione ENTER para continuar..."
+                ;;
+            13)
+                run_seeders
+                read -p "Pressione ENTER para continuar..."
+                ;;
+            14)
+                cleanup_old_releases
+                read -p "Pressione ENTER para continuar..."
+                ;;
+            0)
+                log "Saindo..."
+                exit 0
+                ;;
+            *)
+                warn "Opção inválida!"
+                sleep 2
+                ;;
+        esac
+    done
+}
+
+# ============================
+# MENU DE LINHA DE COMANDO
 # ============================
 
 show_usage() {
     cat <<EOF
 ┌────────────────────────────────────────────────────────────┐
-│  FLUXDESK - Script de Deploy Automatizado                 │
+│  FLUXDESK - Script de Deploy e Manutenção                 │
 │  Stack: Ubuntu 24.04, Nginx, PHP 8.3, Node 20             │
 └────────────────────────────────────────────────────────────┘
 
 USO:
   sudo bash install_and_deploy.sh [COMANDO]
+  
+  Sem argumentos: abre menu interativo
 
 COMANDOS:
-  install    Instala dependências do sistema (PHP, Node, Nginx, etc)
-  deploy     Faz deploy de nova release (clone, build, migrate, ativa)
-  rollback   Faz rollback para release anterior
-  smoke      Executa health checks na aplicação
-  all        Executa tudo (install + deploy + smoke)
+  install           Instala dependências do sistema
+  deploy            Faz deploy de nova release
+  rollback          Faz rollback para release anterior
+  migrate           Executa migrações do banco
+  clear-cache       Limpa todos os caches
+  optimize          Otimiza caches (rebuild)
+  restart           Reinicia serviços (nginx, php-fpm, supervisor)
+  update-deps       Atualiza dependências (composer, pnpm)
+  smoke             Executa health checks
+  status            Mostra status dos serviços
+  logs              Ver logs da aplicação
+  backup            Cria backup do banco de dados
+  seed              Executa seeders
+  cleanup           Remove releases antigas
+  all               Instalação completa + deploy
 
 EXEMPLOS:
-  # Instalação inicial
-  sudo bash install_and_deploy.sh install
+  # Menu interativo
+  sudo bash install_and_deploy.sh
+
+  # Instalação inicial completa
+  sudo bash install_and_deploy.sh all
 
   # Deploy
   sudo bash install_and_deploy.sh deploy
 
-  # Rollback
-  sudo bash install_and_deploy.sh rollback
+  # Limpar cache
+  sudo bash install_and_deploy.sh clear-cache
 
-  # Health check
-  sudo bash install_and_deploy.sh smoke
-
-  # Completo (primeira vez)
-  sudo bash install_and_deploy.sh all
+  # Backup do banco
+  sudo bash install_and_deploy.sh backup
 
 EOF
 }
@@ -783,6 +1165,11 @@ EOF
 # ============================
 
 check_root
+
+# Se não recebeu argumentos, abre menu interativo
+if [ $# -eq 0 ]; then
+    show_interactive_menu
+fi
 
 case "${1:-}" in
     install)
@@ -800,14 +1187,48 @@ case "${1:-}" in
         rollback
         smoke
         ;;
+    migrate)
+        run_migrate
+        ;;
+    clear-cache)
+        clear_cache
+        ;;
+    optimize)
+        clear_cache
+        optimize_cache
+        ;;
+    restart)
+        restart_services
+        ;;
+    update-deps)
+        update_dependencies
+        ;;
     smoke)
         smoke
+        ;;
+    status)
+        show_status
+        ;;
+    logs)
+        show_logs
+        ;;
+    backup)
+        backup_database
+        ;;
+    seed)
+        run_seeders
+        ;;
+    cleanup)
+        cleanup_old_releases
         ;;
     all)
         if ! check_github_auth; then
             err "Falha na verificação de autenticação GitHub"
         fi
         run_all
+        ;;
+    help|--help|-h)
+        show_usage
         ;;
     *)
         show_usage

@@ -61,6 +61,7 @@ export interface ContractVersion {
     activity_type?: string | null;
     // Campos de Status e Vigência
     start_date?: string | null;
+    end_date?: string | null;
     renewal_date?: string | null;
     expiration_term?: string | null;
     auto_renewal: boolean;

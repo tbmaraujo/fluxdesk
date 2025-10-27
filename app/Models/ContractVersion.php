@@ -27,6 +27,7 @@ class ContractVersion extends Model
         'activity_type',
         // Campos de Status e Vigência
         'start_date',
+        'end_date',
         'renewal_date',
         'expiration_term',
         'auto_renewal',
@@ -68,6 +69,7 @@ class ContractVersion extends Model
     protected $casts = [
         'is_active_version' => 'boolean',
         'start_date' => 'date',
+        'end_date' => 'date',
         'renewal_date' => 'date',
         'auto_renewal' => 'boolean',
         'monthly_value' => 'decimal:2',
@@ -101,5 +103,49 @@ class ContractVersion extends Model
     public function items(): HasMany
     {
         return $this->hasMany(ContractItem::class, 'contract_id', 'contract_id');
+    }
+
+    /**
+     * Calculate end_date based on start_date and expiration_term.
+     * 
+     * @return \Carbon\Carbon|null
+     */
+    public function calculateEndDate(): ?\Carbon\Carbon
+    {
+        if (!$this->start_date || !$this->expiration_term) {
+            return null;
+        }
+
+        if ($this->expiration_term === 'Indeterminado') {
+            return null;
+        }
+
+        // Parse expiration_term (e.g., "12 meses", "24 meses")
+        if (preg_match('/(\d+)\s*meses?/i', $this->expiration_term, $matches)) {
+            $months = (int) $matches[1];
+            return \Carbon\Carbon::parse($this->start_date)->addMonths($months);
+        }
+
+        return null;
+    }
+
+    /**
+     * Boot the model and listen to saving event to auto-calculate end_date.
+     */
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::saving(function ($contractVersion) {
+            // Auto-calculate end_date before saving
+            if ($contractVersion->start_date && $contractVersion->expiration_term) {
+                $calculatedEndDate = $contractVersion->calculateEndDate();
+                if ($calculatedEndDate) {
+                    $contractVersion->end_date = $calculatedEndDate->format('Y-m-d');
+                } else {
+                    $contractVersion->end_date = null;
+                }
+            }
+        });
     }
 }

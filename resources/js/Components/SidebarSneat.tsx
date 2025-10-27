@@ -10,7 +10,8 @@ import {
   Settings, 
   Ticket, 
   Users,
-  MessageSquare
+  MessageSquare,
+  BarChart3
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import ApplicationLogo from "./ApplicationLogo";
@@ -137,6 +138,16 @@ export default function SidebarSneat({ className, isCollapsed = false, onToggleC
           icon={<FileText className="h-5 w-5" />}
           label="Contratos"
           active={route().current("contracts.*")}
+          hasSubmenu
+          isCollapsed={!showExpanded}
+        />
+        
+        {/* Relatórios */}
+        <NavItem
+          href={route("reports.index")}
+          icon={<BarChart3 className="h-5 w-5" />}
+          label="Relatórios"
+          active={route().current("reports.*")}
           hasSubmenu
           isCollapsed={!showExpanded}
         />

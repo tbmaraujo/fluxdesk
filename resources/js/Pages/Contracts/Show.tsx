@@ -123,7 +123,7 @@ export default function ShowContract({ auth, contract, hasAppointments }: ShowPr
     if (!activeVersion?.start_date) return { duration: 0, progress: 0, remainingMonths: 0 };
     
     const startDate = new Date(activeVersion.start_date);
-    const endDate = activeVersion.expiration_term ? new Date(activeVersion.expiration_term) : null;
+    const endDate = activeVersion.end_date ? new Date(activeVersion.end_date) : null;
     const today = new Date();
     
     if (!endDate) return { duration: 0, progress: 0, remainingMonths: 0 };
@@ -459,7 +459,7 @@ export default function ShowContract({ auth, contract, hasAppointments }: ShowPr
                       <div>
                         <p className="text-xs text-gray-500 mb-1">Data de Término</p>
                         <p className="text-sm font-semibold text-gray-900">
-                          {activeVersion?.expiration_term ? formatDateBR(activeVersion.expiration_term) : '-'}
+                          {activeVersion?.end_date ? formatDateBR(activeVersion.end_date) : '-'}
                         </p>
                       </div>
                       <div>

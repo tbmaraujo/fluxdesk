@@ -61,6 +61,9 @@ class TicketPdfController extends Controller
         // Calcular total de minutos dos apontamentos
         $totalMinutes = $ticket->appointments->sum('duration_in_minutes');
         
+        // Configurar o caminho do Chrome
+        $chromePath = config('pdf.browsershot.chrome_path', '/home/thiago/.cache/puppeteer/chrome-headless-shell/linux-141.0.7390.122/chrome-headless-shell-linux64/chrome-headless-shell');
+        
         // Gerar PDF usando Spatie (usa Chromium, suporte total a UTF-8)
         return Pdf::view('reports.rat-new', [
                 'ticket' => $ticket,
@@ -68,6 +71,12 @@ class TicketPdfController extends Controller
                 'totalMinutes' => $totalMinutes,
             ])
             ->format('a4')
+            ->withBrowsershot(function ($browsershot) use ($chromePath) {
+                $browsershot
+                    ->setChromePath($chromePath)
+                    ->noSandbox()
+                    ->setOption('args', ['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage']);
+            })
             ->name('RAT_Ticket_' . $ticket->id . '_' . now()->format('Y-m-d_His') . '.pdf')
             ->download(); // Use ->inline() para visualizar no navegador
     }

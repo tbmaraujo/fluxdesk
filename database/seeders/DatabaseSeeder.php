@@ -60,6 +60,7 @@ class DatabaseSeeder extends Seeder
         $this->call(ServiceSeeder::class);
         $this->call(PrioritySeeder::class);
         $this->call(GroupSeeder::class);
+        $this->call(ReportTypeSeeder::class);
 
         // Run the Client seeder (creates clients with users)
         $this->call(ClientSeeder::class);
