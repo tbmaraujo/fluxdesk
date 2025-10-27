@@ -60,7 +60,7 @@ SES_WEBHOOK_SECRET=seu_secret_existente_aqui
 SES_SNS_TOPIC_ARN=
 
 # Bucket S3 para armazenar e-mails recebidos
-AWS_SES_S3_BUCKET=fluxdesk-emails-inbound
+AWS_SES_S3_BUCKET=fluxdesk-tickets-emails-inbound
 
 # Certifique-se que estas já existem (geralmente já estão configuradas):
 # AWS_DEFAULT_REGION=us-east-2
@@ -113,7 +113,7 @@ sudo supervisorctl restart fluxdesk-worker:*
 1. Acesse [AWS S3 Console](https://console.aws.amazon.com/s3)
 2. Região: **us-east-2** (mesma do seu sistema)
 3. **Create bucket**
-   - Nome: `fluxdesk-emails-inbound`
+   - Nome: `fluxdesk-tickets-emails-inbound`
    - Região: `us-east-2`
    - **Desmarcar** "Block all public access"
    - Create bucket
@@ -133,7 +133,7 @@ sudo supervisorctl restart fluxdesk-worker:*
         "Service": "ses.amazonaws.com"
       },
       "Action": "s3:PutObject",
-      "Resource": "arn:aws:s3:::fluxdesk-emails-inbound/*",
+      "Resource": "arn:aws:s3:::fluxdesk-tickets-emails-inbound/*",
       "Condition": {
         "StringEquals": {
           "aws:Referer": "SEU_AWS_ACCOUNT_ID"
@@ -148,11 +148,11 @@ sudo supervisorctl restart fluxdesk-worker:*
 
 ```bash
 # Criar bucket
-aws s3 mb s3://fluxdesk-emails-inbound --region us-east-2
+aws s3 mb s3://fluxdesk-tickets-emails-inbound --region us-east-2
 
 # Adicionar policy (crie o arquivo policy.json com o conteúdo acima)
 aws s3api put-bucket-policy \
-  --bucket fluxdesk-emails-inbound \
+  --bucket fluxdesk-tickets-emails-inbound \
   --policy file://policy.json
 ```
 
@@ -179,8 +179,8 @@ Sua EC2 já tem uma IAM Role. Vamos apenas adicionar permissões para o bucket.
     "s3:ListBucket"
   ],
   "Resource": [
-    "arn:aws:s3:::fluxdesk-emails-inbound",
-    "arn:aws:s3:::fluxdesk-emails-inbound/*"
+    "arn:aws:s3:::fluxdesk-tickets-emails-inbound",
+    "arn:aws:s3:::fluxdesk-tickets-emails-inbound/*"
   ]
 }
 ```
@@ -311,7 +311,7 @@ tail -f /var/www/fluxdesk/storage/logs/laravel.log | grep -i subscription
 
    **Ação 1 - S3:**
    - Add action: **Deliver to S3 bucket**
-   - Bucket: `fluxdesk-emails-inbound`
+   - Bucket: `fluxdesk-tickets-emails-inbound`
    - Object key prefix: `inbound/`
    - Add action
 
@@ -379,7 +379,7 @@ php artisan tinker
 - [ ] Workers reiniciados
 
 ### AWS:
-- [ ] Bucket S3 criado (`fluxdesk-emails-inbound`)
+- [ ] Bucket S3 criado (`fluxdesk-tickets-emails-inbound`)
 - [ ] Policy do bucket configurada
 - [ ] IAM Role atualizada (permissões S3)
 - [ ] Domínio SES verificado

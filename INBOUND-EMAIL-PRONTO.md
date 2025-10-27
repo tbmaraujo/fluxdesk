@@ -46,9 +46,9 @@ cat >> .env << 'EOF'
 
 # === E-MAIL INBOUND ===
 SES_WEBHOOK_SECRET=LLtC0ZrotUnA9KspRKKkgjlTJT1RjiuAG7DZ9Q1MXRg=
-AWS_SES_S3_BUCKET=fluxdesk-emails-inbound
+AWS_SES_S3_BUCKET=fluxdesk-tickets-emails-inbound
 AWS_DEFAULT_REGION=us-east-2
-AWS_BUCKET=fluxdesk-emails-inbound
+AWS_BUCKET=fluxdesk-tickets-emails-inbound
 QUEUE_CONNECTION=redis
 EOF
 

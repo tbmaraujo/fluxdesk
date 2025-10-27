@@ -107,7 +107,7 @@
 ```bash
 # 1. Adicionar ao .env (use o secret já gerado)
 SES_WEBHOOK_SECRET=LLtC0ZrotUnA9KspRKKkgjlTJT1RjiuAG7DZ9Q1MXRg=
-AWS_SES_S3_BUCKET=fluxdesk-emails-inbound
+AWS_SES_S3_BUCKET=fluxdesk-tickets-emails-inbound
 AWS_DEFAULT_REGION=us-east-2
 QUEUE_CONNECTION=redis
 
@@ -123,7 +123,7 @@ php artisan queue:work --sleep=1 --tries=3
 Siga o checklist completo: **[Setup/AWS-INBOUND-CHECKLIST.md](AWS-INBOUND-CHECKLIST.md)**
 
 **Resumo dos passos:**
-1. Criar bucket S3: `fluxdesk-emails-inbound`
+1. Criar bucket S3: `fluxdesk-tickets-emails-inbound`
 2. Verificar domínio: `tickets.fluxdesk.com.br` no SES
 3. Configurar DNS (MX + DKIM + TXT)
 4. Criar SNS Topic: `FluxdeskSES-Inbound-Emails`

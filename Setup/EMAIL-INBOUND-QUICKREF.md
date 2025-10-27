@@ -86,11 +86,11 @@ SES_WEBHOOK_SECRET=seu_secret_aqui
 SES_SNS_TOPIC_ARN=arn:aws:sns:us-east-2:123456789:FluxdeskSES-Inbound-Emails
 
 # Bucket S3 para armazenar e-mails
-AWS_SES_S3_BUCKET=fluxdesk-emails-inbound
+AWS_SES_S3_BUCKET=fluxdesk-tickets-emails-inbound
 
 # Região AWS
 AWS_DEFAULT_REGION=us-east-2
-AWS_BUCKET=fluxdesk-emails-inbound
+AWS_BUCKET=fluxdesk-tickets-emails-inbound
 
 # Queue (obrigatório)
 QUEUE_CONNECTION=redis

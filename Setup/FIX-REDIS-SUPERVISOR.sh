@@ -158,7 +158,7 @@ if ! grep -q "^AWS_SES_S3_BUCKET=" "$ENV_FILE"; then
 # ================================================
 # E-MAIL INBOUND (Recebimento de Tickets)
 # ================================================
-AWS_SES_S3_BUCKET=fluxdesk-emails-inbound
+AWS_SES_S3_BUCKET=fluxdesk-tickets-emails-inbound
 SES_SNS_TOPIC_ARN=
 ENVEOF
     echo "✓ Variáveis de e-mail inbound adicionadas"
@@ -166,7 +166,7 @@ fi
 
 # Atualizar AWS_BUCKET se estiver vazio
 if grep -q "^AWS_BUCKET=$" "$ENV_FILE"; then
-    sed -i 's/^AWS_BUCKET=$/AWS_BUCKET=fluxdesk-emails-inbound/' "$ENV_FILE"
+    sed -i 's/^AWS_BUCKET=$/AWS_BUCKET=fluxdesk-tickets-emails-inbound/' "$ENV_FILE"
     echo "✓ AWS_BUCKET atualizado"
 fi
 

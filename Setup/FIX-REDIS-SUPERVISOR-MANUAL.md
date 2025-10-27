@@ -140,8 +140,8 @@ sudo nano /var/www/fluxdesk/current/.env
 QUEUE_CONNECTION=redis  # Era: sync
 
 # ADICIONAR SE NÃO EXISTIREM:
-AWS_SES_S3_BUCKET=fluxdesk-emails-inbound
-AWS_BUCKET=fluxdesk-emails-inbound
+AWS_SES_S3_BUCKET=fluxdesk-tickets-emails-inbound
+AWS_BUCKET=fluxdesk-tickets-emails-inbound
 
 # Deixar vazio por enquanto (preencher depois):
 SES_SNS_TOPIC_ARN=

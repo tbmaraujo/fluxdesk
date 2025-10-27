@@ -24,13 +24,13 @@ Adicione ao seu `.env`:
 # SES Inbound Configuration
 SES_WEBHOOK_SECRET=LLtC0ZrotUnA9KspRKKkgjlTJT1RjiuAG7DZ9Q1MXRg=
 SES_SNS_TOPIC_ARN=
-AWS_SES_S3_BUCKET=fluxdesk-emails-inbound
+AWS_SES_S3_BUCKET=fluxdesk-tickets-emails-inbound
 
 # AWS (Desenvolvimento - use suas credenciais)
 AWS_ACCESS_KEY_ID=sua_access_key_aqui
 AWS_SECRET_ACCESS_KEY=sua_secret_key_aqui
 AWS_DEFAULT_REGION=us-east-2
-AWS_BUCKET=fluxdesk-emails-inbound
+AWS_BUCKET=fluxdesk-tickets-emails-inbound
 
 # Redis Queue (certifique-se que está configurado)
 QUEUE_CONNECTION=redis
@@ -70,7 +70,7 @@ php artisan tinker
 ### 2.1. Criar Bucket S3
 
 1. Acesse **AWS Console** → **S3** → **Create bucket**
-2. Nome: `fluxdesk-emails-inbound`
+2. Nome: `fluxdesk-tickets-emails-inbound`
 3. Região: `us-east-2` (mesma do SES)
 4. **Bloquear acesso público:** DESABILITADO (apenas para o SES)
 
@@ -89,7 +89,7 @@ Vá em **Permissions** → **Bucket Policy** e adicione:
         "Service": "ses.amazonaws.com"
       },
       "Action": "s3:PutObject",
-      "Resource": "arn:aws:s3:::fluxdesk-emails-inbound/*",
+      "Resource": "arn:aws:s3:::fluxdesk-tickets-emails-inbound/*",
       "Condition": {
         "StringEquals": {
           "aws:Referer": "SEU_AWS_ACCOUNT_ID"
@@ -176,7 +176,7 @@ Isso captura **todos** os e-mails enviados para `*@tickets.fluxdesk.com.br`.
 
 **Ação 1: S3 Action**
 - Action: **Deliver to S3 bucket**
-- S3 bucket: `fluxdesk-emails-inbound`
+- S3 bucket: `fluxdesk-tickets-emails-inbound`
 - Object key prefix: `inbound/` (opcional)
 
 **Ação 2: SNS Action**
@@ -215,8 +215,8 @@ Se você está rodando na EC2, **NÃO use Access Keys**. Configure uma IAM Role:
         "s3:ListBucket"
       ],
       "Resource": [
-        "arn:aws:s3:::fluxdesk-emails-inbound",
-        "arn:aws:s3:::fluxdesk-emails-inbound/*"
+        "arn:aws:s3:::fluxdesk-tickets-emails-inbound",
+        "arn:aws:s3:::fluxdesk-tickets-emails-inbound/*"
       ]
     }
   ]
@@ -229,8 +229,8 @@ Se você está rodando na EC2, **NÃO use Access Keys**. Configure uma IAM Role:
 # .env em produção (EC2 com IAM Role)
 # ⚠️ NÃO configure AWS_ACCESS_KEY_ID e AWS_SECRET_ACCESS_KEY
 AWS_DEFAULT_REGION=us-east-2
-AWS_BUCKET=fluxdesk-emails-inbound
-AWS_SES_S3_BUCKET=fluxdesk-emails-inbound
+AWS_BUCKET=fluxdesk-tickets-emails-inbound
+AWS_SES_S3_BUCKET=fluxdesk-tickets-emails-inbound
 
 SES_WEBHOOK_SECRET=seu_secret_seguro_aqui
 SES_SNS_TOPIC_ARN=arn:aws:sns:us-east-2:123456789:FluxdeskSES-Inbound-Emails

@@ -327,7 +327,7 @@ Quando Supervisor estiver funcionando, continue com:
 1. ✅ **Atualizar .env** (se ainda não fez):
    ```bash
    QUEUE_CONNECTION=redis
-   AWS_SES_S3_BUCKET=fluxdesk-emails-inbound
+   AWS_SES_S3_BUCKET=fluxdesk-tickets-emails-inbound
    ```
 
 2. ✅ **Limpar caches**:

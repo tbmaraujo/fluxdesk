@@ -22,7 +22,7 @@ Siga este guia passo a passo para configurar o recebimento de e-mails no Fluxdes
 1. [ ] Acesse [AWS S3 Console](https://console.aws.amazon.com/s3)
 2. [ ] Clique em **"Create bucket"**
 3. [ ] Configure:
-   - **Bucket name:** `fluxdesk-emails-inbound`
+   - **Bucket name:** `fluxdesk-tickets-emails-inbound`
    - **AWS Region:** `us-east-2` (Ohio) - mesma região do SES
    - **Block Public Access:** DESMARQUE todas as opções
    - **Bucket Versioning:** Disabled
@@ -42,7 +42,7 @@ Siga este guia passo a passo para configurar o recebimento de e-mails no Fluxdes
         "Service": "ses.amazonaws.com"
       },
       "Action": "s3:PutObject",
-      "Resource": "arn:aws:s3:::fluxdesk-emails-inbound/*",
+      "Resource": "arn:aws:s3:::fluxdesk-tickets-emails-inbound/*",
       "Condition": {
         "StringEquals": {
           "aws:Referer": "SEU_AWS_ACCOUNT_ID"
@@ -57,7 +57,7 @@ Siga este guia passo a passo para configurar o recebimento de e-mails no Fluxdes
 
 **✓ Verificação:**
 ```bash
-aws s3 ls s3://fluxdesk-emails-inbound
+aws s3 ls s3://fluxdesk-tickets-emails-inbound
 ```
 
 ---
@@ -243,7 +243,7 @@ aws sns list-subscriptions-by-topic \
    **Ação 1 - S3:**
    - [ ] Clique em **"Add new action"**
    - [ ] Selecione **"Deliver to Amazon S3 bucket"**
-   - **S3 bucket:** `fluxdesk-emails-inbound`
+   - **S3 bucket:** `fluxdesk-tickets-emails-inbound`
    - **Object key prefix:** `inbound/` (opcional)
    - Clique em **"Add action"**
 
@@ -302,8 +302,8 @@ aws sns list-subscriptions-by-topic \
         "s3:ListBucket"
       ],
       "Resource": [
-        "arn:aws:s3:::fluxdesk-emails-inbound",
-        "arn:aws:s3:::fluxdesk-emails-inbound/*"
+        "arn:aws:s3:::fluxdesk-tickets-emails-inbound",
+        "arn:aws:s3:::fluxdesk-tickets-emails-inbound/*"
       ]
     }
   ]
@@ -347,8 +347,8 @@ aws sns list-subscriptions-by-topic \
 
 # Mantenha apenas:
 AWS_DEFAULT_REGION=us-east-2
-AWS_BUCKET=fluxdesk-emails-inbound
-AWS_SES_S3_BUCKET=fluxdesk-emails-inbound
+AWS_BUCKET=fluxdesk-tickets-emails-inbound
+AWS_SES_S3_BUCKET=fluxdesk-tickets-emails-inbound
 
 SES_WEBHOOK_SECRET=seu_secret_aqui
 SES_SNS_TOPIC_ARN=arn:aws:sns:us-east-2:123456789012:FluxdeskSES-Inbound-Emails

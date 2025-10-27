@@ -43,7 +43,7 @@ openssl rand -base64 32
 
 # Adicionar ao .env
 SES_WEBHOOK_SECRET=seu_secret_gerado_aqui
-AWS_SES_S3_BUCKET=fluxdesk-emails-inbound
+AWS_SES_S3_BUCKET=fluxdesk-tickets-emails-inbound
 AWS_DEFAULT_REGION=us-east-2
 QUEUE_CONNECTION=redis
 ```
