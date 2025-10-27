@@ -223,7 +223,7 @@ database/migrations/
 └── 2025_10_25_171605_create_ticket_emails_table.php
 
 routes/
-└── api.php (webhook: /api/webhooks/ses/inbound)
+└── api.php (webhook: /api/webhooks/ses-inbound)
 ```
 
 ---

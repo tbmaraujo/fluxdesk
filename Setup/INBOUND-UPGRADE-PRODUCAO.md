@@ -259,7 +259,7 @@ php artisan config:clear
 1. Na página do Topic, **Create subscription**
 2. Configure:
    - Protocol: **HTTPS**
-   - Endpoint: `https://seu-dominio.com/api/webhooks/ses/inbound`
+   - Endpoint: `https://seu-dominio.com/api/webhooks/ses-inbound`
      - **Importante:** Use o domínio real da sua aplicação
    - Enable raw message delivery: **DESABILITADO**
 3. Create subscription
@@ -333,9 +333,9 @@ tail -f /var/www/fluxdesk/storage/logs/laravel.log | grep -i subscription
 
 ```bash
 # Do seu computador
-curl -I https://seu-dominio.com/api/webhooks/ses/inbound
+curl -I https://seu-dominio.com/api/webhooks/ses-inbound
 
-# Deve retornar: 401 ou 405 (normal - sem secret)
+# Deve retornar: 200 ou 405 (normal - endpoint existe)
 ```
 
 ### Teste 2: Criar ticket via e-mail
@@ -414,7 +414,7 @@ dig MX tickets.fluxdesk.com.br
 
 ```bash
 # Verificar se a URL é acessível
-curl -I https://seu-dominio.com/api/webhooks/ses/inbound
+curl -I https://seu-dominio.com/api/webhooks/ses-inbound
 
 # Ver logs da app
 tail -f /var/www/fluxdesk/storage/logs/laravel.log | grep -i sns

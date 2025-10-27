@@ -180,7 +180,7 @@ aws sns list-topics --region us-east-2 | grep FluxdeskSES
 1. [ ] Na página do Topic criado, clique em **"Create subscription"**
 2. [ ] Configure:
    - **Protocol:** HTTPS
-   - **Endpoint:** `https://seu-dominio.com/api/webhooks/ses/inbound`
+   - **Endpoint:** `https://seu-dominio.com/api/webhooks/ses-inbound`
    - **Enable raw message delivery:** DESABILITADO (deixe desmarcado!)
 3. [ ] Clique em **"Create subscription"**
 

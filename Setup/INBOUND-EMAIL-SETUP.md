@@ -144,7 +144,7 @@ Value: [fornecido pelo SES].dkim.amazonses.com
 
 1. Na página do Topic, clique em **Create subscription**
 2. Protocolo: **HTTPS**
-3. Endpoint: `https://seu-dominio.com/api/webhooks/ses/inbound`
+3. Endpoint: `https://seu-dominio.com/api/webhooks/ses-inbound`
 4. **Enable raw message delivery:** DESABILITADO (deixar desmarcado)
 5. Clique em **Create subscription**
 
@@ -245,7 +245,7 @@ SES_SNS_TOPIC_ARN=arn:aws:sns:us-east-2:123456789:FluxdeskSES-Inbound-Emails
 Você pode testar localmente sem AWS usando este script:
 
 ```bash
-curl -X POST http://localhost:8000/api/webhooks/ses/inbound \
+curl -X POST http://localhost:8000/api/webhooks/ses-inbound \
   -H "Content-Type: application/json" \
   -H "X-SES-Secret: LLtC0ZrotUnA9KspRKKkgjlTJT1RjiuAG7DZ9Q1MXRg=" \
   -d '{
@@ -358,7 +358,7 @@ php artisan tinker
 
 1. Verifique se a URL é acessível:
    ```bash
-   curl -I https://seu-dominio.com/api/webhooks/ses/inbound
+   curl -I https://seu-dominio.com/api/webhooks/ses-inbound
    ```
 
 2. Verifique os logs da aplicação:

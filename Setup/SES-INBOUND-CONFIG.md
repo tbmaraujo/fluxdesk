@@ -112,7 +112,7 @@ Adicione a seguinte policy ao bucket para permitir que o SES salve e-mails:
 
 1. Na página do Topic, clique em **Create subscription**
 2. Protocolo: **HTTPS**
-3. Endpoint: `https://seu-dominio.com/api/webhooks/ses/inbound`
+3. Endpoint: `https://seu-dominio.com/api/webhooks/ses-inbound`
 4. **Enable raw message delivery:** DESABILITAR (deixar desligado)
 5. Clique em **Create subscription**
 
@@ -361,7 +361,7 @@ aws sns list-subscriptions-by-topic --topic-arn arn:aws:sns:us-east-1:ACCOUNT_ID
 **Solução:**
 
 1. Verifique se a URL do endpoint está acessível publicamente
-2. Certifique-se que a rota está correta: `/api/webhooks/ses/inbound`
+2. Certifique-se que a rota está correta: `/api/webhooks/ses-inbound`
 3. Verifique os logs da aplicação:
    ```bash
    grep "SubscriptionConfirmation" storage/logs/laravel.log
@@ -516,7 +516,7 @@ private function isValidSender(string $email): bool
 2. SES recebe e valida MX
 3. SES salva no S3: s3://bucket/inbound/message-id
 4. SES publica no SNS Topic
-5. SNS envia POST para: /api/webhooks/ses/inbound
+5. SNS envia POST para: /api/webhooks/ses-inbound
 6. Controller valida webhook secret
 7. Service extrai tenant_id (1)
 8. Service valida tenant existe
@@ -586,7 +586,7 @@ Em caso de problemas:
 1. **Verificar logs da aplicação:** `storage/logs/laravel.log`
 2. **Verificar CloudWatch Logs** (AWS)
 3. **Verificar status do SNS Subscription**
-4. **Testar manualmente o webhook:** Envie POST para `/api/webhooks/ses/inbound`
+4. **Testar manualmente o webhook:** Envie POST para `/api/webhooks/ses-inbound`
 5. **Consultar documentação AWS SES:** https://docs.aws.amazon.com/ses/
 
 ---

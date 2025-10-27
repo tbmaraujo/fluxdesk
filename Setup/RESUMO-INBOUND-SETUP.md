@@ -43,7 +43,7 @@
 - ✅ JÁ EXECUTADA
 
 ✅ **Rota de Webhook**
-- `/api/webhooks/ses/inbound` (POST)
+- `/api/webhooks/ses-inbound` (POST)
 - Configurada em `routes/api.php`
 
 ✅ **Validação de Request**
@@ -245,7 +245,7 @@ database/migrations/
 └── 2025_10_25_171605_create_ticket_emails_table.php (✅ executada)
 
 routes/
-└── api.php (rota /api/webhooks/ses/inbound)
+└── api.php (rota /api/webhooks/ses-inbound)
 
 config/
 └── services.php (configuração SES)

@@ -66,7 +66,7 @@ echo "Enviando requisição..."
 echo ""
 
 # Fazer a requisição
-RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "${APP_URL}/api/webhooks/ses/inbound" \
+RESPONSE=$(curl -s -w "\nHTTP_CODE:%{http_code}" -X POST "${APP_URL}/api/webhooks/ses-inbound" \
   -H "Content-Type: application/json" \
   -H "x-amz-sns-message-type: Notification" \
   -d "$PAYLOAD")

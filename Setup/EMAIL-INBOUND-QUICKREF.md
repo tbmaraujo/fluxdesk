@@ -113,7 +113,7 @@ QUEUE_CONNECTION=redis
 ### Teste com cURL
 
 ```bash
-curl -X POST http://localhost:8000/api/webhooks/ses/inbound \
+curl -X POST http://localhost:8000/api/webhooks/ses-inbound \
   -H "Content-Type: application/json" \
   -H "X-SES-Secret: seu_secret_aqui" \
   -d '{
@@ -282,7 +282,7 @@ php artisan tinker
 
 **Verificar URL acessível:**
 ```bash
-curl -I https://seu-dominio.com/api/webhooks/ses/inbound
+curl -I https://seu-dominio.com/api/webhooks/ses-inbound
 # Deve retornar: HTTP/2 200
 ```
 

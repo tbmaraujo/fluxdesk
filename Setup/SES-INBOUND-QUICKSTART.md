@@ -41,7 +41,7 @@ Guia rápido para configurar recebimento de e-mails e criação automática de t
 2. Nome: `SES-Inbound-Email-Notifications`
 3. **Create subscription:**
    - Protocol: **HTTPS**
-   - Endpoint: `https://seu-dominio.com/api/webhooks/ses/inbound`
+   - Endpoint: `https://seu-dominio.com/api/webhooks/ses-inbound`
 
 ### 4️⃣ Criar Rule Set no SES
 
