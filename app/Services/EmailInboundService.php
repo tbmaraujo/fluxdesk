@@ -97,36 +97,44 @@ class EmailInboundService
 
     /**
      * Extrair tenant_id do endereço de e-mail (ex: 1234@tickets.fluxdesk.com.br).
-     * Aceita ID numérico ou CNPJ.
+     * Aceita ID numérico, SLUG ou CNPJ.
      *
      * @param string $email
      * @return int|null
      */
     private function extractTenantId(string $email): ?int
     {
-        // Extrair a parte antes do @ (tenant_id ou CNPJ)
-        if (preg_match('/^(\d+)@/', $email, $matches)) {
+        // Extrair a parte antes do @ (pode ser: ID, slug, ou CNPJ)
+        if (preg_match('/^([a-zA-Z0-9_-]+)@/', $email, $matches)) {
             $identifier = $matches[1];
             
-            // Se for um número pequeno (ID), usar diretamente
-            if (strlen($identifier) <= 10) {
+            // Se for apenas números pequenos (ID), usar diretamente
+            if (ctype_digit($identifier) && strlen($identifier) <= 10) {
                 return (int) $identifier;
             }
             
-            // Se for maior (CNPJ), buscar o tenant pelo documento
-            $tenant = Tenant::where('document', $identifier)
+            // Buscar tenant por: slug, CNPJ ou documento
+            $tenant = Tenant::where('slug', $identifier)
                 ->orWhere('cnpj', $identifier)
+                ->orWhere(function($query) use ($identifier) {
+                    // Se for apenas números, também buscar por documento/cnpj numérico
+                    if (ctype_digit($identifier)) {
+                        $query->where('cnpj', $identifier)
+                              ->orWhere('document', $identifier);
+                    }
+                })
                 ->first();
             
             if ($tenant) {
-                Log::info('Tenant identificado por CNPJ/documento', [
+                Log::info('Tenant identificado', [
                     'identifier' => $identifier,
                     'tenant_id' => $tenant->id,
+                    'tenant_slug' => $tenant->slug,
                 ]);
                 return $tenant->id;
             }
             
-            Log::warning('Tenant não encontrado por documento', [
+            Log::warning('Tenant não encontrado', [
                 'identifier' => $identifier,
             ]);
         }
