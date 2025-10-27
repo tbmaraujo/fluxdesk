@@ -453,16 +453,34 @@ class EmailInboundService
         try {
             // Notificar o contato (solicitante)
             if ($ticket->contact && $ticket->contact->email) {
+                Log::info('Tentando enviar notificação de ticket criado', [
+                    'ticket_id' => $ticket->id,
+                    'to_email' => $ticket->contact->email,
+                ]);
+                
                 Mail::to($ticket->contact->email)->queue(
                     new TicketCreatedNotification($ticket)
                 );
+                
+                Log::info('Notificação de ticket criado enfileirada', [
+                    'ticket_id' => $ticket->id,
+                ]);
+            } else {
+                Log::warning('Ticket criado mas sem e-mail de contato para notificar', [
+                    'ticket_id' => $ticket->id,
+                    'contact_id' => $ticket->contact_id ?? null,
+                ]);
             }
 
             // TODO: Notificar grupos de atendentes responsáveis pelo serviço
         } catch (\Exception $e) {
+            // Logar erro mas NÃO propagar exceção
+            // O ticket já foi criado, a falha na notificação não deve impedir isso
             Log::error('Erro ao enviar notificação de ticket criado', [
                 'ticket_id' => $ticket->id,
+                'contact_email' => $ticket->contact->email ?? null,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
@@ -479,17 +497,38 @@ class EmailInboundService
         try {
             // Notificar o responsável pelo ticket (se houver)
             if ($ticket->assignee && $ticket->assignee->email) {
+                Log::info('Tentando enviar notificação de resposta', [
+                    'ticket_id' => $ticket->id,
+                    'reply_id' => $reply->id,
+                    'to_email' => $ticket->assignee->email,
+                ]);
+                
                 Mail::to($ticket->assignee->email)->queue(
                     new TicketReplyNotification($ticket, $reply)
                 );
+                
+                Log::info('Notificação de resposta enfileirada', [
+                    'ticket_id' => $ticket->id,
+                    'reply_id' => $reply->id,
+                ]);
+            } else {
+                Log::warning('Resposta criada mas sem responsável para notificar', [
+                    'ticket_id' => $ticket->id,
+                    'reply_id' => $reply->id,
+                    'user_id' => $ticket->user_id ?? null,
+                ]);
             }
 
             // TODO: Notificar outros participantes do ticket
         } catch (\Exception $e) {
+            // Logar erro mas NÃO propagar exceção
+            // A resposta já foi criada, a falha na notificação não deve impedir isso
             Log::error('Erro ao enviar notificação de resposta', [
                 'ticket_id' => $ticket->id,
                 'reply_id' => $reply->id,
+                'assignee_email' => $ticket->assignee->email ?? null,
                 'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
             ]);
         }
     }
