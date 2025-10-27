@@ -126,10 +126,16 @@ fi
 echo ""
 
 # ================================================
-# 6. CRIAR CONFIGURAÇÃO DO WORKER
+# 6. LIMPAR CONFIGURAÇÕES ANTIGAS E CRIAR NOVA
 # ================================================
 
 echo -e "${YELLOW}[6/7] Criando configuração do worker...${NC}"
+
+# Remover configurações antigas que possam conflitar
+echo "Removendo configurações antigas..."
+rm -f /etc/supervisor/conf.d/sincro8-worker.conf
+rm -f /etc/supervisor/conf.d/laravel-worker.conf
+rm -f /etc/supervisor/conf.d/*-worker.conf
 
 # Detectar diretório da aplicação
 if [ -d "/var/www/fluxdesk/current" ]; then
@@ -143,6 +149,14 @@ else
 fi
 
 echo "Diretório da aplicação: $APP_DIR"
+
+# Verificar se o diretório realmente existe
+if [ ! -d "$APP_DIR" ]; then
+    echo -e "${RED}✗ Erro: $APP_DIR não existe!${NC}"
+    echo "Diretórios encontrados em /var/www:"
+    ls -la /var/www/
+    exit 1
+fi
 
 # Criar diretório de logs se não existir
 mkdir -p "$APP_DIR/storage/logs"
