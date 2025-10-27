@@ -1,18 +1,7 @@
 <?php
 
-use App\Http\Controllers\Api\EmailInboundController;
 use Illuminate\Support\Facades\Route;
-
-/*
-|--------------------------------------------------------------------------
-| API Routes
-|--------------------------------------------------------------------------
-|
-| Here is where you can register API routes for your application. These
-| routes are loaded by the RouteServiceProvider and all of them will
-| be assigned to the "api" middleware group. Make something great!
-|
-*/
+use App\Http\Controllers\Api\EmailInboundController;
 
 // Webhook público do SNS/SES (sem auth/tenant/throttle)
 Route::post('/webhooks/ses-inbound', [EmailInboundController::class, 'handleSnsNotification'])
@@ -23,3 +12,4 @@ Route::post('/webhooks/ses-inbound', [EmailInboundController::class, 'handleSnsN
         'auth', 'auth:api', 'auth:sanctum',
         'throttle:api',
     ]);
+

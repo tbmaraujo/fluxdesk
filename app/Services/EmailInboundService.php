@@ -21,6 +21,17 @@ use Illuminate\Support\Facades\Storage;
 class EmailInboundService
 {
     /**
+     * Alias para processInboundEmail (compatibilidade).
+     *
+     * @param array $payload
+     * @return array
+     */
+    public function process(array $payload): array
+    {
+        return $this->processInboundEmail($payload);
+    }
+
+    /**
      * Processar e-mail recebido do SES.
      *
      * @param array $messageContent
