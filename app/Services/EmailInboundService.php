@@ -97,15 +97,38 @@ class EmailInboundService
 
     /**
      * Extrair tenant_id do endereço de e-mail (ex: 1234@tickets.fluxdesk.com.br).
+     * Aceita ID numérico ou CNPJ.
      *
      * @param string $email
      * @return int|null
      */
     private function extractTenantId(string $email): ?int
     {
-        // Extrair a parte antes do @ (tenant_id)
+        // Extrair a parte antes do @ (tenant_id ou CNPJ)
         if (preg_match('/^(\d+)@/', $email, $matches)) {
-            return (int) $matches[1];
+            $identifier = $matches[1];
+            
+            // Se for um número pequeno (ID), usar diretamente
+            if (strlen($identifier) <= 10) {
+                return (int) $identifier;
+            }
+            
+            // Se for maior (CNPJ), buscar o tenant pelo documento
+            $tenant = Tenant::where('document', $identifier)
+                ->orWhere('cnpj', $identifier)
+                ->first();
+            
+            if ($tenant) {
+                Log::info('Tenant identificado por CNPJ/documento', [
+                    'identifier' => $identifier,
+                    'tenant_id' => $tenant->id,
+                ]);
+                return $tenant->id;
+            }
+            
+            Log::warning('Tenant não encontrado por documento', [
+                'identifier' => $identifier,
+            ]);
         }
 
         return null;
