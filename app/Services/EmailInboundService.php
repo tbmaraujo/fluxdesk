@@ -113,16 +113,9 @@ class EmailInboundService
                 return (int) $identifier;
             }
             
-            // Buscar tenant por: slug, CNPJ ou documento
+            // Buscar tenant por: slug ou CNPJ
             $tenant = Tenant::where('slug', $identifier)
                 ->orWhere('cnpj', $identifier)
-                ->orWhere(function($query) use ($identifier) {
-                    // Se for apenas números, também buscar por documento/cnpj numérico
-                    if (ctype_digit($identifier)) {
-                        $query->where('cnpj', $identifier)
-                              ->orWhere('document', $identifier);
-                    }
-                })
                 ->first();
             
             if ($tenant) {
