@@ -225,12 +225,22 @@ class EmailInboundService
                 throw new \Exception('Nenhum serviço encontrado para o tenant: ' . $tenant->id);
             }
 
+            // Obter usuário padrão do tenant para tickets via e-mail
+            // Busca primeiro usuário do tenant (pode ser configurado depois)
+            $defaultUser = User::where('tenant_id', $tenant->id)
+                ->orderBy('id')
+                ->first();
+
+            if (!$defaultUser) {
+                throw new \Exception('Nenhum usuário encontrado para o tenant: ' . $tenant->id . '. É necessário ter pelo menos um usuário cadastrado.');
+            }
+
             // Criar ticket
             $ticket = Ticket::create([
                 'tenant_id' => $tenant->id,
                 'client_id' => $client->id,
                 'contact_id' => $contact->id,
-                'user_id' => null, // E-mail não tem usuário logado
+                'user_id' => $defaultUser->id, // Usar primeiro usuário do tenant
                 'service_id' => $service->id,
                 'ticket_type_id' => $service->ticket_type_id,
                 'title' => $subject,
