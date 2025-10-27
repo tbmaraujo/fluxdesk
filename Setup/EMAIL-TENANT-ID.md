@@ -56,7 +56,7 @@ php artisan tinker
 >>> \App\Models\Tenant::where('name', 'LIKE', '%nome%')->get(['id', 'name', 'document'])
 
 # Buscar por CNPJ
->>> \App\Models\Tenant::where('document', '42262851012132')->first()
+>>> \App\Models\Tenant::where('cnpj', '42262851012132')->first()
 ```
 
 ---
@@ -79,7 +79,6 @@ O sistema detecta automaticamente qual formato foi usado:
 3. **Prioridade de busca:**
    - 1º: `slug`
    - 2º: `cnpj`
-   - 3º: `document`
 
 ---
 
@@ -162,12 +161,12 @@ php artisan tinker
 >>> Schema::getColumnListing('tenants')
 ```
 
-**Campos comuns:**
+**Campos da tabela tenants:**
 - `id` - ID numérico (sempre existe)
-- `document` - CNPJ/CPF
-- `cnpj` - CNPJ específico
+- `slug` - SLUG único do tenant
+- `cnpj` - CNPJ do tenant
 - `name` - Nome do tenant
-- `email` - E-mail do tenant
+- `domain` - Domínio personalizado (se houver)
 
 ---
 
@@ -209,18 +208,16 @@ tail -f /var/www/fluxdesk/current/storage/logs/laravel.log | grep "Tenant identi
 
 ---
 
-## 🔧 Customização
+## 🔧 Campos Disponíveis
 
-Se sua tabela usa outro campo para CNPJ, edite:
+A tabela `tenants` tem os seguintes campos:
+- `id` - ID numérico
+- `slug` - SLUG único (recomendado para e-mails)
+- `cnpj` - CNPJ da empresa
+- `name` - Nome da empresa
+- `domain` - Domínio personalizado
 
-`app/Services/EmailInboundService.php` - linha ~117:
-
-```php
-$tenant = Tenant::where('document', $identifier)
-    ->orWhere('cnpj', $identifier)
-    ->orWhere('seu_campo_aqui', $identifier)  // Adicione seu campo
-    ->first();
-```
+O sistema busca automaticamente por `slug` ou `cnpj`.
 
 ---
 
