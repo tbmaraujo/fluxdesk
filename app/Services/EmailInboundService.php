@@ -55,10 +55,12 @@ class EmailInboundService
                 'destinations' => $destinations,
                 'subject' => $subject,
                 'message_id' => $messageId,
+                'headers' => $commonHeaders,
             ]);
 
             // Encontrar o destinatário correto (prioritizar @tickets.fluxdesk.com.br)
-            $to = $this->findTicketEmailAddress($destinations);
+            // Busca em: destinations, headers To, X-Original-To, etc
+            $to = $this->findTicketEmailAddress($destinations, $commonHeaders);
 
             // Extrair tenant_id do destinatário (ex: 1234@tickets.fluxdesk.com.br)
             $tenantId = $this->extractTenantId($to);
@@ -104,34 +106,68 @@ class EmailInboundService
      * Útil para e-mails encaminhados onde há múltiplos destinatários.
      *
      * @param array $destinations Lista de destinatários do e-mail
+     * @param array $headers Headers do e-mail
      * @return string
      */
-    private function findTicketEmailAddress(array $destinations): string
+    private function findTicketEmailAddress(array $destinations, array $headers = []): string
     {
-        if (empty($destinations)) {
-            return '';
-        }
-
         // Domínio do sistema de tickets (pode ser configurado no .env)
         $ticketDomain = config('mail.ticket_domain', 'tickets.fluxdesk.com.br');
 
-        // Procurar destinatário que termine com o domínio do sistema
-        foreach ($destinations as $destination) {
-            if (str_ends_with(strtolower($destination), '@' . strtolower($ticketDomain))) {
-                Log::info('E-mail do sistema encontrado', [
-                    'ticket_email' => $destination,
-                    'all_destinations' => $destinations,
-                ]);
-                return $destination;
+        // 1. Procurar nos destinatários SES
+        if (!empty($destinations)) {
+            foreach ($destinations as $destination) {
+                if (str_ends_with(strtolower($destination), '@' . strtolower($ticketDomain))) {
+                    Log::info('E-mail do sistema encontrado nos destinations', [
+                        'ticket_email' => $destination,
+                        'all_destinations' => $destinations,
+                    ]);
+                    return $destination;
+                }
             }
         }
 
-        // Fallback: retornar o primeiro destinatário
-        $firstDestination = $destinations[0];
+        // 2. Procurar no header 'To' original
+        if (isset($headers['to']) && is_array($headers['to'])) {
+            foreach ($headers['to'] as $toAddress) {
+                if (str_ends_with(strtolower($toAddress), '@' . strtolower($ticketDomain))) {
+                    Log::info('E-mail do sistema encontrado no header To', [
+                        'ticket_email' => $toAddress,
+                        'header_to' => $headers['to'],
+                    ]);
+                    return $toAddress;
+                }
+            }
+        }
+
+        // 3. Procurar no header 'To' como string
+        if (isset($headers['to']) && is_string($headers['to'])) {
+            // Pode vir como: "Nome <email@domain.com>, Outro <outro@domain.com>"
+            if (preg_match_all('/<([^>]+@' . preg_quote($ticketDomain, '/') . ')>/i', $headers['to'], $matches)) {
+                $foundEmail = $matches[1][0];
+                Log::info('E-mail do sistema encontrado no header To (string)', [
+                    'ticket_email' => $foundEmail,
+                    'header_to' => $headers['to'],
+                ]);
+                return $foundEmail;
+            }
+            
+            // Ou pode vir direto: "email@domain.com"
+            if (str_ends_with(strtolower($headers['to']), '@' . strtolower($ticketDomain))) {
+                Log::info('E-mail do sistema encontrado no header To (direto)', [
+                    'ticket_email' => $headers['to'],
+                ]);
+                return $headers['to'];
+            }
+        }
+
+        // 4. Fallback: retornar o primeiro destinatário
+        $firstDestination = $destinations[0] ?? '';
         
-        Log::warning('E-mail do sistema não encontrado, usando primeiro destinatário', [
+        Log::warning('E-mail do sistema não encontrado em nenhum campo', [
             'first_destination' => $firstDestination,
             'all_destinations' => $destinations,
+            'headers_to' => $headers['to'] ?? null,
             'expected_domain' => $ticketDomain,
         ]);
         
@@ -140,14 +176,39 @@ class EmailInboundService
 
     /**
      * Extrair tenant_id do endereço de e-mail (ex: 1234@tickets.fluxdesk.com.br).
-     * Aceita ID numérico, SLUG ou CNPJ.
+     * Aceita ID numérico, SLUG, CNPJ ou e-mail mapeado.
      *
      * @param string $email
      * @return int|null
      */
     private function extractTenantId(string $email): ?int
     {
-        // Extrair a parte antes do @ (pode ser: ID, slug, ou CNPJ)
+        // 1. Verificar mapeamento direto de e-mail corporativo -> tenant
+        // Útil para e-mails encaminhados onde não temos o @tickets.fluxdesk.com.br
+        $emailMapping = config('mail.tenant_email_mapping', []);
+        
+        if (isset($emailMapping[strtolower($email)])) {
+            $mappedTenantSlug = $emailMapping[strtolower($email)];
+            
+            Log::info('E-mail mapeado encontrado', [
+                'email' => $email,
+                'mapped_slug' => $mappedTenantSlug,
+            ]);
+            
+            // Buscar tenant pelo SLUG mapeado
+            $tenant = Tenant::where('slug', $mappedTenantSlug)->first();
+            
+            if ($tenant) {
+                Log::info('Tenant identificado via mapeamento', [
+                    'email' => $email,
+                    'tenant_id' => $tenant->id,
+                    'tenant_slug' => $tenant->slug,
+                ]);
+                return $tenant->id;
+            }
+        }
+        
+        // 2. Extrair a parte antes do @ (pode ser: ID, slug, ou CNPJ)
         if (preg_match('/^([a-zA-Z0-9_-]+)@/', $email, $matches)) {
             $identifier = $matches[1];
             
@@ -172,6 +233,7 @@ class EmailInboundService
             
             Log::warning('Tenant não encontrado', [
                 'identifier' => $identifier,
+                'email' => $email,
             ]);
         }
 

@@ -128,4 +128,26 @@ return [
 
     'ticket_domain' => env('MAIL_TICKET_DOMAIN', 'tickets.fluxdesk.com.br'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Tenant Email Mapping
+    |--------------------------------------------------------------------------
+    |
+    | Mapeamento de e-mails corporativos para tenants (SLUG).
+    | Útil quando o SES recebe e-mails diretamente de domínios corporativos
+    | dos clientes, sem passar pelo domínio tickets.fluxdesk.com.br.
+    |
+    | Formato: 'email-cliente@dominio.com' => 'slug-do-tenant'
+    |
+    | Exemplo:
+    | 'atendimento@onegestao.com.br' => '42262851012132',
+    | 'suporte@outraempresa.com.br' => 'outraempresa',
+    |
+    */
+
+    'tenant_email_mapping' => [
+        // Adicione aqui os e-mails corporativos dos clientes
+        // 'atendimento@onegestao.com.br' => '42262851012132',
+    ],
+
 ];
