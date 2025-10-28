@@ -369,6 +369,14 @@ Route::middleware(["auth", "prevent.superadmin", "identify.tenant"])->group(func
 
         // Groups
         Route::resource('groups', \App\Http\Controllers\Settings\GroupController::class);
+
+        // Tenant Email Addresses (Configuração de E-mails)
+        Route::get('email', [\App\Http\Controllers\TenantEmailAddressController::class, 'index'])->name('email.index');
+        Route::post('email', [\App\Http\Controllers\TenantEmailAddressController::class, 'store'])->name('email.store');
+        Route::put('email/{tenant_email_address}', [\App\Http\Controllers\TenantEmailAddressController::class, 'update'])->name('email.update');
+        Route::delete('email/{tenant_email_address}', [\App\Http\Controllers\TenantEmailAddressController::class, 'destroy'])->name('email.destroy');
+        Route::post('email/{tenant_email_address}/verify', [\App\Http\Controllers\TenantEmailAddressController::class, 'verify'])->name('email.verify');
+        Route::post('email/{tenant_email_address}/toggle', [\App\Http\Controllers\TenantEmailAddressController::class, 'toggle'])->name('email.toggle');
     });
 
     // Service routes - Moved to settings group below

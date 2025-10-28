@@ -11,6 +11,7 @@ use App\Models\Contact;
 use App\Models\Reply;
 use App\Models\Service;
 use App\Models\Tenant;
+use App\Models\TenantEmailAddress;
 use App\Models\Ticket;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -183,14 +184,31 @@ class EmailInboundService
      */
     private function extractTenantId(string $email): ?int
     {
-        // 1. Verificar mapeamento direto de e-mail corporativo -> tenant
-        // Útil para e-mails encaminhados onde não temos o @tickets.fluxdesk.com.br
+        $normalizedEmail = strtolower(trim($email));
+        
+        // 1. Buscar e-mail cadastrado no banco de dados (prioridade)
+        $tenantEmail = TenantEmailAddress::where('email', $normalizedEmail)
+            ->where('active', true)
+            ->incoming()
+            ->first();
+        
+        if ($tenantEmail) {
+            Log::info('E-mail encontrado no banco de dados', [
+                'email' => $email,
+                'tenant_id' => $tenantEmail->tenant_id,
+                'purpose' => $tenantEmail->purpose,
+                'priority' => $tenantEmail->priority,
+            ]);
+            return $tenantEmail->tenant_id;
+        }
+        
+        // 2. Fallback: Verificar mapeamento estático no config (legado)
         $emailMapping = config('mail.tenant_email_mapping', []);
         
-        if (isset($emailMapping[strtolower($email)])) {
-            $mappedTenantSlug = $emailMapping[strtolower($email)];
+        if (isset($emailMapping[$normalizedEmail])) {
+            $mappedTenantSlug = $emailMapping[$normalizedEmail];
             
-            Log::info('E-mail mapeado encontrado', [
+            Log::info('E-mail mapeado encontrado no config (legado)', [
                 'email' => $email,
                 'mapped_slug' => $mappedTenantSlug,
             ]);
@@ -199,7 +217,7 @@ class EmailInboundService
             $tenant = Tenant::where('slug', $mappedTenantSlug)->first();
             
             if ($tenant) {
-                Log::info('Tenant identificado via mapeamento', [
+                Log::info('Tenant identificado via mapeamento legado', [
                     'email' => $email,
                     'tenant_id' => $tenant->id,
                     'tenant_slug' => $tenant->slug,
@@ -208,12 +226,16 @@ class EmailInboundService
             }
         }
         
-        // 2. Extrair a parte antes do @ (pode ser: ID, slug, ou CNPJ)
+        // 3. Extrair a parte antes do @ (pode ser: ID, slug, ou CNPJ)
         if (preg_match('/^([a-zA-Z0-9_-]+)@/', $email, $matches)) {
             $identifier = $matches[1];
             
             // Se for apenas números pequenos (ID), usar diretamente
             if (ctype_digit($identifier) && strlen($identifier) <= 10) {
+                Log::info('Tenant identificado por ID numérico', [
+                    'identifier' => $identifier,
+                    'email' => $email,
+                ]);
                 return (int) $identifier;
             }
             
@@ -223,7 +245,7 @@ class EmailInboundService
                 ->first();
             
             if ($tenant) {
-                Log::info('Tenant identificado', [
+                Log::info('Tenant identificado por SLUG/CNPJ', [
                     'identifier' => $identifier,
                     'tenant_id' => $tenant->id,
                     'tenant_slug' => $tenant->slug,
@@ -231,7 +253,7 @@ class EmailInboundService
                 return $tenant->id;
             }
             
-            Log::warning('Tenant não encontrado', [
+            Log::warning('Tenant não encontrado em nenhum método', [
                 'identifier' => $identifier,
                 'email' => $email,
             ]);
