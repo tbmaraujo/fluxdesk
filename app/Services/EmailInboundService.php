@@ -82,15 +82,25 @@ class EmailInboundService
             // Parsear o e-mail
             $parsedEmail = EmailParser::parse($emailContent);
 
+            // Usar o endereço do remetente extraído do e-mail parseado (From: header)
+            // em vez do mail.source que pode ser um endereço de bounce/envelope
+            $senderEmail = $parsedEmail['from'] ?? $from;
+            
+            Log::info('Remetente identificado', [
+                'envelope_source' => $from,
+                'parsed_from' => $parsedEmail['from'] ?? null,
+                'using' => $senderEmail,
+            ]);
+
             // Verificar se é um novo ticket ou resposta
             $ticketId = $this->extractTicketId($subject);
 
             if ($ticketId) {
                 // É uma resposta a ticket existente
-                return $this->processReply($tenant, $ticketId, $from, $parsedEmail);
+                return $this->processReply($tenant, $ticketId, $senderEmail, $parsedEmail);
             } else {
                 // É um novo ticket
-                return $this->processNewTicket($tenant, $from, $subject, $parsedEmail);
+                return $this->processNewTicket($tenant, $senderEmail, $subject, $parsedEmail);
             }
         } catch (\Exception $e) {
             Log::error('Erro ao processar e-mail recebido', [
