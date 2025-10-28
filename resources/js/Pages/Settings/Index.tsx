@@ -32,6 +32,7 @@ export default function SettingsIndex() {
       items: [
         { name: 'Dados da empresa', href: '#', description: 'Informações básicas' },
         { name: 'Personalização', href: '#', description: 'Logo e cores' },
+        { name: 'E-mail', href: route('settings.email.index'), description: 'Configurações de e-mail' },
       ],
     },
     {

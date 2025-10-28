@@ -39,6 +39,24 @@ export interface Group {
     updated_at?: string;
 }
 
+export interface TenantEmailAddress {
+    id: number;
+    tenant_id: number;
+    email: string;
+    purpose: 'incoming' | 'outgoing' | 'both';
+    priority: 'high' | 'normal' | 'low';
+    client_filter: string | null;
+    verified: boolean;
+    verified_at: string | null;
+    active: boolean;
+    notes: string | null;
+    created_at: string;
+    updated_at: string;
+    // Relacionamentos
+    tenant?: any;
+    client?: Client;
+}
+
 export interface ContractType {
     id: number;
     tenant_id: number;
