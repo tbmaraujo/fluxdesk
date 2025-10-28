@@ -19,8 +19,7 @@ class TenantEmailAddressController extends Controller
         $tenantId = $request->user()->tenant_id;
 
         $emailAddresses = TenantEmailAddress::where('tenant_id', $tenantId)
-            ->with('client:id,name')
-            ->orderBy('priority', 'desc')
+            ->with(['client:id,name', 'service:id,name', 'priority:id,name,service_id'])
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -29,9 +28,21 @@ class TenantEmailAddressController extends Controller
             ->orderBy('name')
             ->get();
 
+        $services = \App\Models\Service::where('tenant_id', $tenantId)
+            ->select('id', 'name')
+            ->orderBy('name')
+            ->get();
+
+        $priorities = \App\Models\Priority::where('tenant_id', $tenantId)
+            ->select('id', 'name', 'service_id')
+            ->orderBy('name')
+            ->get();
+
         return Inertia::render('Settings/Email', [
             'emailAddresses' => $emailAddresses,
             'clients' => $clients,
+            'services' => $services,
+            'priorities' => $priorities,
         ]);
     }
 

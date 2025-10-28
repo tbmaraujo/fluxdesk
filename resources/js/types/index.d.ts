@@ -39,12 +39,35 @@ export interface Group {
     updated_at?: string;
 }
 
+export interface Service {
+    id: number;
+    tenant_id: number;
+    name: string;
+    description?: string | null;
+    created_at?: string;
+    updated_at?: string;
+}
+
+export interface Priority {
+    id: number;
+    tenant_id: number;
+    service_id: number;
+    name: string;
+    response_sla_time?: number | null;
+    resolution_sla_time?: number | null;
+    created_at?: string;
+    updated_at?: string;
+    service?: Service;
+}
+
 export interface TenantEmailAddress {
     id: number;
     tenant_id: number;
     email: string;
     purpose: 'incoming' | 'outgoing' | 'both';
-    priority: 'high' | 'normal' | 'low';
+    service_id?: number | null;
+    priority_id?: number | null;
+    priority?: string | null; // Deprecated - manter por compatibilidade
     client_filter: string | null;
     verified: boolean;
     verified_at: string | null;
@@ -55,6 +78,8 @@ export interface TenantEmailAddress {
     // Relacionamentos
     tenant?: any;
     client?: Client;
+    service?: Service;
+    priority?: Priority;
 }
 
 export interface ContractType {

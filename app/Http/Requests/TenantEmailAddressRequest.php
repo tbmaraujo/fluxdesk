@@ -53,7 +53,8 @@ class TenantEmailAddressRequest extends FormRequest
                     ->where('tenant_id', $this->user()->tenant_id),
             ],
             'purpose' => ['required', Rule::in(['incoming', 'outgoing', 'both'])],
-            'priority' => ['nullable', Rule::in(['high', 'normal', 'low'])],
+            'service_id' => ['required', 'exists:services,id'],
+            'priority_id' => ['required', 'exists:priorities,id'],
             'client_filter' => ['nullable', 'string', 'max:255'],
             'verified' => ['nullable', 'boolean'],
             'active' => ['nullable', 'boolean'],
@@ -69,7 +70,8 @@ class TenantEmailAddressRequest extends FormRequest
         return [
             'email' => 'E-mail',
             'purpose' => 'Finalidade',
-            'priority' => 'Prioridade',
+            'service_id' => 'Mesa de Serviço',
+            'priority_id' => 'Prioridade',
             'client_filter' => 'Cliente',
             'verified' => 'Verificado',
             'active' => 'Ativo',
@@ -88,6 +90,10 @@ class TenantEmailAddressRequest extends FormRequest
             'email.unique' => 'Este e-mail já está cadastrado para este tenant.',
             'purpose.required' => 'A finalidade é obrigatória.',
             'purpose.in' => 'Finalidade inválida.',
+            'service_id.required' => 'A mesa de serviço é obrigatória.',
+            'service_id.exists' => 'Mesa de serviço inválida.',
+            'priority_id.required' => 'A prioridade é obrigatória.',
+            'priority_id.exists' => 'Prioridade inválida.',
         ];
     }
 }

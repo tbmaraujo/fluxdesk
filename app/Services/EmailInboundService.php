@@ -100,7 +100,7 @@ class EmailInboundService
                 return $this->processReply($tenant, $ticketId, $senderEmail, $parsedEmail);
             } else {
                 // É um novo ticket
-                return $this->processNewTicket($tenant, $senderEmail, $subject, $parsedEmail);
+                return $this->processNewTicket($tenant, $senderEmail, $subject, $parsedEmail, $to);
             }
         } catch (\Exception $e) {
             Log::error('Erro ao processar e-mail recebido', [
@@ -336,34 +336,71 @@ class EmailInboundService
      * @param string $from
      * @param string $subject
      * @param array $parsedEmail
+     * @param string $toEmail
      * @return array
      */
-    private function processNewTicket(Tenant $tenant, string $from, string $subject, array $parsedEmail): array
+    private function processNewTicket(Tenant $tenant, string $from, string $subject, array $parsedEmail, string $toEmail): array
     {
         DB::beginTransaction();
 
         try {
+            // Buscar configuração do e-mail de recebimento
+            $tenantEmail = TenantEmailAddress::where('tenant_id', $tenant->id)
+                ->where('email', strtolower($toEmail))
+                ->where('active', true)
+                ->first();
+
             // Encontrar ou criar contato
             $contact = $this->findOrCreateContact($tenant->id, $from, $parsedEmail['from_name'] ?? null);
 
-            // Obter o primeiro cliente do tenant (ou usar um padrão)
-            // TODO: Melhorar lógica para associar ao cliente correto
-            $client = Client::where('tenant_id', $tenant->id)->first();
-
-            if (!$client) {
-                throw new \Exception('Nenhum cliente encontrado para o tenant: ' . $tenant->id);
+            // Determinar cliente
+            $clientId = null;
+            if ($tenantEmail && $tenantEmail->client_filter) {
+                $clientId = $tenantEmail->client_filter;
+            } else {
+                // Fallback: primeiro cliente do tenant
+                $client = Client::where('tenant_id', $tenant->id)->first();
+                if (!$client) {
+                    throw new \Exception('Nenhum cliente encontrado para o tenant: ' . $tenant->id);
+                }
+                $clientId = $client->id;
             }
 
-            // Obter serviço padrão (primeiro serviço do tenant)
-            // TODO: Permitir configurar serviço padrão por tenant
-            $service = Service::where('tenant_id', $tenant->id)->first();
-
-            if (!$service) {
-                throw new \Exception('Nenhum serviço encontrado para o tenant: ' . $tenant->id);
+            // Determinar serviço e prioridade
+            if ($tenantEmail && $tenantEmail->service_id && $tenantEmail->priority_id) {
+                $serviceId = $tenantEmail->service_id;
+                $priorityId = $tenantEmail->priority_id;
+                
+                Log::info('Usando serviço e prioridade do e-mail configurado', [
+                    'email' => $toEmail,
+                    'service_id' => $serviceId,
+                    'priority_id' => $priorityId,
+                ]);
+            } else {
+                // Fallback: primeiro serviço do tenant
+                $service = Service::where('tenant_id', $tenant->id)->first();
+                
+                if (!$service) {
+                    throw new \Exception('Nenhum serviço encontrado para o tenant: ' . $tenant->id);
+                }
+                
+                $serviceId = $service->id;
+                
+                // Primeira prioridade do serviço
+                $priority = \App\Models\Priority::where('service_id', $serviceId)->first();
+                $priorityId = $priority ? $priority->id : null;
+                
+                Log::warning('E-mail não configurado ou incompleto, usando serviço/prioridade padrão', [
+                    'email' => $toEmail,
+                    'service_id' => $serviceId,
+                    'priority_id' => $priorityId,
+                ]);
             }
 
+            // Buscar ticket_type_id do serviço
+            $service = Service::find($serviceId);
+            
             // Obter usuário padrão do tenant para tickets via e-mail
-            // Busca primeiro usuário do tenant (pode ser configurado depois)
             $defaultUser = User::where('tenant_id', $tenant->id)
                 ->orderBy('id')
                 ->first();
@@ -375,16 +412,16 @@ class EmailInboundService
             // Criar ticket
             $ticket = Ticket::create([
                 'tenant_id' => $tenant->id,
-                'client_id' => $client->id,
+                'client_id' => $clientId,
                 'contact_id' => $contact->id,
-                'user_id' => $defaultUser->id, // Usar primeiro usuário do tenant
-                'service_id' => $service->id,
+                'user_id' => $defaultUser->id,
+                'service_id' => $serviceId,
+                'priority_id' => $priorityId,
                 'ticket_type_id' => $service->ticket_type_id,
                 'title' => $subject,
                 'description' => $parsedEmail['body_html'] ?? $parsedEmail['body_text'] ?? '',
                 'status' => 'OPEN',
                 'stage' => 'PENDENTE',
-                'priority' => 'MEDIUM',
             ]);
 
             // Processar anexos

@@ -15,7 +15,10 @@ class TenantEmailAddress extends Model
         'tenant_id',
         'email',
         'purpose',
-        'priority',
+        'service_id',
+        'priority_id',
+        'priority', // deprecated - manter por compatibilidade
+        'priority_legacy',
         'client_filter',
         'verified',
         'verified_at',
@@ -35,6 +38,22 @@ class TenantEmailAddress extends Model
     public function tenant(): BelongsTo
     {
         return $this->belongsTo(Tenant::class);
+    }
+
+    /**
+     * Relacionamento com mesa de serviço.
+     */
+    public function service(): BelongsTo
+    {
+        return $this->belongsTo(Service::class);
+    }
+
+    /**
+     * Relacionamento com prioridade.
+     */
+    public function priority(): BelongsTo
+    {
+        return $this->belongsTo(Priority::class);
     }
 
     /**

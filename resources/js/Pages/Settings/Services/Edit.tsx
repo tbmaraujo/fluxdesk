@@ -142,8 +142,8 @@ export default function Edit({ service, availableClients, availableGroups }: Pro
       setEditingPriority(priority);
       setPriorityData({
         name: priority.name,
-        response_sla_time: minutesToTimeFormat(priority.response_sla_time),
-        resolution_sla_time: minutesToTimeFormat(priority.resolution_sla_time),
+        response_sla_time: minutesToTimeFormat(priority.response_sla_time || 0),
+        resolution_sla_time: minutesToTimeFormat(priority.resolution_sla_time || 0),
       });
     } else {
       setEditingPriority(null);
@@ -594,13 +594,13 @@ export default function Edit({ service, availableClients, availableGroups }: Pro
                             <TableCell className="text-center">
                               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 text-blue-700 font-medium">
                                 <Clock className="h-4 w-4" />
-                                {formatTime(priority.response_sla_time)}
+                                {formatTime(priority.response_sla_time || 0)}
                               </div>
                             </TableCell>
                             <TableCell className="text-center">
                               <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-green-50 text-green-700 font-medium">
                                 <Clock className="h-4 w-4" />
-                                {formatTime(priority.resolution_sla_time)}
+                                {formatTime(priority.resolution_sla_time || 0)}
                               </div>
                             </TableCell>
                             <TableCell>

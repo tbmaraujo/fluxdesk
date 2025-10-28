@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import { useForm } from '@inertiajs/react';
 import {
     Dialog,
@@ -18,13 +19,15 @@ import {
     SelectValue,
 } from '@/Components/ui/select';
 import { Textarea } from '@/Components/ui/textarea';
-import type { Client, TenantEmailAddress } from '@/types';
+import type { Client, TenantEmailAddress, Service, Priority } from '@/types';
 
 interface EmailAddressDialogProps {
     open: boolean;
     onClose: () => void;
     email?: TenantEmailAddress | null;
     clients: Client[];
+    services: Service[];
+    priorities: Priority[];
 }
 
 export default function EmailAddressDialog({
@@ -32,14 +35,42 @@ export default function EmailAddressDialog({
     onClose,
     email,
     clients,
+    services,
+    priorities,
 }: EmailAddressDialogProps) {
+    const [filteredPriorities, setFilteredPriorities] = useState<Priority[]>([]);
+
     const { data, setData, post, put, processing, errors, reset } = useForm({
         email: email?.email || '',
         purpose: email?.purpose || 'incoming',
-        priority: email?.priority || 'normal',
+        service_id: email?.service_id?.toString() || '',
+        priority_id: email?.priority_id?.toString() || '',
         client_filter: email?.client_filter || 'all',
         notes: email?.notes || '',
     });
+
+    // Filtrar prioridades quando mesa de serviço mudar
+    useEffect(() => {
+        if (data.service_id) {
+            const filtered = priorities.filter(
+                p => p.service_id.toString() === data.service_id
+            );
+            setFilteredPriorities(filtered);
+            
+            // Se a prioridade selecionada não pertence à mesa selecionada, limpar
+            if (data.priority_id) {
+                const priorityBelongsToService = filtered.some(
+                    p => p.id.toString() === data.priority_id
+                );
+                if (!priorityBelongsToService) {
+                    setData('priority_id', '');
+                }
+            }
+        } else {
+            setFilteredPriorities([]);
+            setData('priority_id', '');
+        }
+    }, [data.service_id]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
@@ -66,7 +97,7 @@ export default function EmailAddressDialog({
 
     return (
         <Dialog open={open} onOpenChange={onClose}>
-            <DialogContent className="sm:max-w-[500px]">
+            <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
                     <DialogTitle>
                         {email ? 'Editar E-mail' : 'Adicionar E-mail'}
@@ -101,6 +132,63 @@ export default function EmailAddressDialog({
                         )}
                     </div>
 
+                    <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                            <Label htmlFor="service_id">
+                                Mesa de Serviço <span className="text-red-500">*</span>
+                            </Label>
+                            <Select
+                                value={data.service_id}
+                                onValueChange={value => setData('service_id', value)}
+                            >
+                                <SelectTrigger id="service_id">
+                                    <SelectValue placeholder="Selecione a mesa" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {services.map(service => (
+                                        <SelectItem key={service.id} value={service.id.toString()}>
+                                            {service.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {errors.service_id && (
+                                <p className="text-sm text-red-500">{errors.service_id}</p>
+                            )}
+                            <p className="text-xs text-gray-500">
+                                Mesa padrão para tickets deste e-mail
+                            </p>
+                        </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="priority_id">
+                                Prioridade <span className="text-red-500">*</span>
+                            </Label>
+                            <Select
+                                value={data.priority_id}
+                                onValueChange={value => setData('priority_id', value)}
+                                disabled={!data.service_id}
+                            >
+                                <SelectTrigger id="priority_id">
+                                    <SelectValue placeholder={data.service_id ? "Selecione a prioridade" : "Selecione a mesa primeiro"} />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    {filteredPriorities.map(priority => (
+                                        <SelectItem key={priority.id} value={priority.id.toString()}>
+                                            {priority.name}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                            {errors.priority_id && (
+                                <p className="text-sm text-red-500">{errors.priority_id}</p>
+                            )}
+                            <p className="text-xs text-gray-500">
+                                Prioridade padrão dos tickets
+                            </p>
+                        </div>
+                    </div>
+
                     <div className="space-y-2">
                         <Label htmlFor="client_filter">Cliente</Label>
                         <Select
@@ -121,26 +209,6 @@ export default function EmailAddressDialog({
                         </Select>
                         <p className="text-xs text-gray-500">
                             Filtre tickets deste e-mail para um cliente específico
-                        </p>
-                    </div>
-
-                    <div className="space-y-2">
-                        <Label htmlFor="priority">Prioridade</Label>
-                        <Select
-                            value={data.priority}
-                            onValueChange={value => setData('priority', value as 'high' | 'normal' | 'low')}
-                        >
-                            <SelectTrigger id="priority">
-                                <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                                <SelectItem value="high">Alta</SelectItem>
-                                <SelectItem value="normal">Normal</SelectItem>
-                                <SelectItem value="low">Baixa</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        <p className="text-xs text-gray-500">
-                            Prioridade padrão dos tickets criados por este e-mail
                         </p>
                     </div>
 
@@ -176,4 +244,3 @@ export default function EmailAddressDialog({
         </Dialog>
     );
 }
-

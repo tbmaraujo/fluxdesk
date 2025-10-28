@@ -7,14 +7,16 @@ import GeneralTab from './Email/GeneralTab';
 import IncomingTab from './Email/IncomingTab';
 import AuthorizationsTab from './Email/AuthorizationsTab';
 import OutgoingTab from './Email/OutgoingTab';
-import type { Client, TenantEmailAddress } from '@/types';
+import type { Client, TenantEmailAddress, Service, Priority } from '@/types';
 
 interface EmailSettingsProps {
     emailAddresses: TenantEmailAddress[];
     clients: Client[];
+    services: Service[];
+    priorities: Priority[];
 }
 
-export default function EmailSettings({ emailAddresses, clients }: EmailSettingsProps) {
+export default function EmailSettings({ emailAddresses, clients, services, priorities }: EmailSettingsProps) {
     const incomingEmails = emailAddresses.filter(
         e => e.purpose === 'incoming' || e.purpose === 'both'
     );
@@ -62,7 +64,12 @@ export default function EmailSettings({ emailAddresses, clients }: EmailSettings
                     </TabsContent>
 
                     <TabsContent value="recebimento" className="space-y-4">
-                        <IncomingTab emailAddresses={incomingEmails} clients={clients} />
+                        <IncomingTab 
+                            emailAddresses={incomingEmails} 
+                            clients={clients}
+                            services={services}
+                            priorities={priorities}
+                        />
                     </TabsContent>
 
                     <TabsContent value="autorizacoes" className="space-y-4">

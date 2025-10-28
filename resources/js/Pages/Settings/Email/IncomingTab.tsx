@@ -20,14 +20,16 @@ import {
 import { Alert, AlertDescription } from '@/Components/ui/alert';
 import { Plus, MoreVertical, Pencil, Trash2, Power, CheckCircle2, XCircle, Info, Mail } from 'lucide-react';
 import EmailAddressDialog from './EmailAddressDialog';
-import type { Client, TenantEmailAddress } from '@/types';
+import type { Client, TenantEmailAddress, Service, Priority } from '@/types';
 
 interface IncomingTabProps {
     emailAddresses: TenantEmailAddress[];
     clients: Client[];
+    services: Service[];
+    priorities: Priority[];
 }
 
-export default function IncomingTab({ emailAddresses, clients }: IncomingTabProps) {
+export default function IncomingTab({ emailAddresses, clients, services, priorities }: IncomingTabProps) {
     const [dialogOpen, setDialogOpen] = useState(false);
     const [editingEmail, setEditingEmail] = useState<TenantEmailAddress | null>(null);
 
@@ -54,14 +56,12 @@ export default function IncomingTab({ emailAddresses, clients }: IncomingTabProp
         );
     };
 
-    const getPriorityBadge = (priority: string) => {
-        const variants = {
-            high: { variant: 'destructive' as const, label: 'Alta' },
-            normal: { variant: 'secondary' as const, label: 'Normal' },
-            low: { variant: 'outline' as const, label: 'Baixa' },
-        };
-        const config = variants[priority as keyof typeof variants] || variants.normal;
-        return <Badge variant={config.variant}>{config.label}</Badge>;
+    const getPriorityName = (email: TenantEmailAddress) => {
+        return (email.priority as any)?.name || 'Não definida';
+    };
+
+    const getServiceName = (email: TenantEmailAddress) => {
+        return (email.service as any)?.name || 'Não definida';
     };
 
     const getClientName = (clientFilter: string | null) => {
@@ -121,6 +121,7 @@ export default function IncomingTab({ emailAddresses, clients }: IncomingTabProp
                                     <TableRow>
                                         <TableHead>E-mail</TableHead>
                                         <TableHead>Cliente</TableHead>
+                                        <TableHead>Mesa de Serviço</TableHead>
                                         <TableHead>Prioridade</TableHead>
                                         <TableHead>Status</TableHead>
                                         <TableHead>Verificado</TableHead>
@@ -139,7 +140,12 @@ export default function IncomingTab({ emailAddresses, clients }: IncomingTabProp
                                                 )}
                                             </TableCell>
                                             <TableCell>{getClientName(email.client_filter)}</TableCell>
-                                            <TableCell>{getPriorityBadge(email.priority)}</TableCell>
+                                            <TableCell>
+                                                <Badge variant="outline">{getServiceName(email)}</Badge>
+                                            </TableCell>
+                                            <TableCell>
+                                                <Badge variant="secondary">{getPriorityName(email)}</Badge>
+                                            </TableCell>
                                             <TableCell>
                                                 <Badge variant={email.active ? 'success' : 'secondary'}>
                                                     {email.active ? 'Ativo' : 'Inativo'}
@@ -208,6 +214,8 @@ export default function IncomingTab({ emailAddresses, clients }: IncomingTabProp
                 }}
                 email={editingEmail}
                 clients={clients}
+                services={services}
+                priorities={priorities}
             />
         </div>
     );
