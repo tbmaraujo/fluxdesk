@@ -16,6 +16,25 @@ class TenantEmailAddressRequest extends FormRequest
     }
 
     /**
+     * Preparar dados antes da validação.
+     */
+    protected function prepareForValidation(): void
+    {
+        // Converter strings vazias em null para campos opcionais
+        if ($this->client_filter === '' || $this->client_filter === 'all') {
+            $this->merge([
+                'client_filter' => null,
+            ]);
+        }
+
+        if ($this->notes === '') {
+            $this->merge([
+                'notes' => null,
+            ]);
+        }
+    }
+
+    /**
      * Get the validation rules that apply to the request.
      *
      * @return array<string, \Illuminate\Contracts\Validation\ValidationRule|array<mixed>|string>

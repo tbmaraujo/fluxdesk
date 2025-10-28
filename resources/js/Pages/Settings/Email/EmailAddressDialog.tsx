@@ -37,29 +37,30 @@ export default function EmailAddressDialog({
         email: email?.email || '',
         purpose: email?.purpose || 'incoming',
         priority: email?.priority || 'normal',
-        client_filter: email?.client_filter || '',
+        client_filter: email?.client_filter || 'all',
         notes: email?.notes || '',
     });
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
 
+        const options = {
+            preserveScroll: true,
+            onSuccess: () => {
+                reset();
+                onClose();
+            },
+            // Converter "all" para null antes de enviar
+            transform: (formData: any) => ({
+                ...formData,
+                client_filter: formData.client_filter === 'all' ? null : formData.client_filter,
+            }),
+        };
+
         if (email) {
-            put(route('settings.email.update', email.id), {
-                preserveScroll: true,
-                onSuccess: () => {
-                    reset();
-                    onClose();
-                },
-            });
+            put(route('settings.email.update', email.id), options);
         } else {
-            post(route('settings.email.store'), {
-                preserveScroll: true,
-                onSuccess: () => {
-                    reset();
-                    onClose();
-                },
-            });
+            post(route('settings.email.store'), options);
         }
     };
 
@@ -110,7 +111,7 @@ export default function EmailAddressDialog({
                                 <SelectValue placeholder="Todos os clientes" />
                             </SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">Todos os clientes</SelectItem>
+                                <SelectItem value="all">Todos os clientes</SelectItem>
                                 {clients.map(client => (
                                     <SelectItem key={client.id} value={client.id.toString()}>
                                         {client.name}
