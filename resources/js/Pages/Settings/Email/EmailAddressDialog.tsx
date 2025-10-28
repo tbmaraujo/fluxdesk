@@ -127,7 +127,7 @@ export default function EmailAddressDialog({
                         <Label htmlFor="priority">Prioridade</Label>
                         <Select
                             value={data.priority}
-                            onValueChange={value => setData('priority', value)}
+                            onValueChange={value => setData('priority', value as 'high' | 'normal' | 'low')}
                         >
                             <SelectTrigger id="priority">
                                 <SelectValue />
