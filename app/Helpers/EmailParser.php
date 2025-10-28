@@ -81,7 +81,8 @@ class EmailParser
 
             // Extrair corpo do e-mail
             $contentType = $parsedHeaders['content-type'] ?? '';
-            $bodyParts = self::parseBody($body, $contentType);
+            $transferEncoding = $parsedHeaders['content-transfer-encoding'] ?? '';
+            $bodyParts = self::parseBody($body, $contentType, $transferEncoding);
 
             return [
                 'from' => $fromEmail,
@@ -149,9 +150,10 @@ class EmailParser
      *
      * @param string $body
      * @param string $contentType
+     * @param string $transferEncoding
      * @return array
      */
-    private static function parseBody(string $body, string $contentType): array
+    private static function parseBody(string $body, string $contentType, string $transferEncoding = ''): array
     {
         $result = [
             'text' => null,
@@ -167,9 +169,9 @@ class EmailParser
 
         // E-mail simples (texto ou HTML)
         if (str_contains(strtolower($contentType), 'text/html')) {
-            $result['html'] = self::decodeBody($body, $contentType);
+            $result['html'] = self::decodeBody($body, $contentType, $transferEncoding);
         } else {
-            $result['text'] = self::decodeBody($body, $contentType);
+            $result['text'] = self::decodeBody($body, $contentType, $transferEncoding);
         }
 
         return $result;
@@ -210,6 +212,7 @@ class EmailParser
 
             $contentType = $partHeaders['content-type'] ?? '';
             $contentDisposition = $partHeaders['content-disposition'] ?? '';
+            $transferEncoding = $partHeaders['content-transfer-encoding'] ?? '';
 
             // É anexo?
             if (str_contains(strtolower($contentDisposition), 'attachment') ||
@@ -221,11 +224,11 @@ class EmailParser
             }
             // É corpo HTML?
             elseif (str_contains(strtolower($contentType), 'text/html')) {
-                $result['html'] = self::decodeBody($partBody, $contentType);
+                $result['html'] = self::decodeBody($partBody, $contentType, $transferEncoding);
             }
             // É corpo texto?
             elseif (str_contains(strtolower($contentType), 'text/plain')) {
-                $result['text'] = self::decodeBody($partBody, $contentType);
+                $result['text'] = self::decodeBody($partBody, $contentType, $transferEncoding);
             }
             // É multipart aninhado?
             elseif (str_contains(strtolower($contentType), 'multipart')) {
@@ -286,11 +289,23 @@ class EmailParser
      *
      * @param string $body
      * @param string $contentType
+     * @param string $transferEncoding
      * @return string
      */
-    private static function decodeBody(string $body, string $contentType): string
+    private static function decodeBody(string $body, string $contentType, string $transferEncoding = ''): string
     {
-        // Verificar encoding
+        $encoding = strtolower(trim($transferEncoding));
+        
+        // Priorizar Content-Transfer-Encoding se fornecido
+        if ($encoding === 'base64') {
+            return base64_decode(trim($body));
+        }
+        
+        if ($encoding === 'quoted-printable') {
+            return quoted_printable_decode($body);
+        }
+
+        // Fallback: verificar no Content-Type
         if (str_contains(strtolower($contentType), 'base64')) {
             return base64_decode(trim($body));
         }
