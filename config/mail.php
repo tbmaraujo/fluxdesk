@@ -115,4 +115,17 @@ return [
         'name' => env('MAIL_FROM_NAME', 'Example'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Ticket Email Domain
+    |--------------------------------------------------------------------------
+    |
+    | Domínio usado para receber e-mails de abertura/resposta de tickets.
+    | Usado para identificar o destinatário correto em e-mails encaminhados.
+    | Ex: 42262851012132@tickets.fluxdesk.com.br
+    |
+    */
+
+    'ticket_domain' => env('MAIL_TICKET_DOMAIN', 'tickets.fluxdesk.com.br'),
+
 ];

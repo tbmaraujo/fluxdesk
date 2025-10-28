@@ -45,23 +45,26 @@ class EmailInboundService
             $commonHeaders = $mail['commonHeaders'] ?? [];
 
             $from = $mail['source'] ?? '';
-            $to = $mail['destination'][0] ?? ''; // Primeiro destinatário
+            $destinations = $mail['destination'] ?? [];
             $subject = $commonHeaders['subject'] ?? 'Sem assunto';
             $messageId = $mail['messageId'] ?? '';
 
-            // Log inicial
+            // Log inicial com TODOS os destinatários
             Log::info('Processando e-mail recebido', [
                 'from' => $from,
-                'to' => $to,
+                'destinations' => $destinations,
                 'subject' => $subject,
                 'message_id' => $messageId,
             ]);
+
+            // Encontrar o destinatário correto (prioritizar @tickets.fluxdesk.com.br)
+            $to = $this->findTicketEmailAddress($destinations);
 
             // Extrair tenant_id do destinatário (ex: 1234@tickets.fluxdesk.com.br)
             $tenantId = $this->extractTenantId($to);
 
             if (!$tenantId) {
-                throw new \Exception('Não foi possível extrair tenant_id do destinatário: ' . $to);
+                throw new \Exception('Não foi possível extrair tenant_id do destinatário: ' . $to . ' (todos destinatários: ' . implode(', ', $destinations) . ')');
             }
 
             // Validar se o tenant existe
@@ -93,6 +96,46 @@ class EmailInboundService
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Encontrar o endereço de e-mail correto do sistema de tickets.
+     * Procura por e-mails que terminam com o domínio configurado (ex: @tickets.fluxdesk.com.br).
+     * Útil para e-mails encaminhados onde há múltiplos destinatários.
+     *
+     * @param array $destinations Lista de destinatários do e-mail
+     * @return string
+     */
+    private function findTicketEmailAddress(array $destinations): string
+    {
+        if (empty($destinations)) {
+            return '';
+        }
+
+        // Domínio do sistema de tickets (pode ser configurado no .env)
+        $ticketDomain = config('mail.ticket_domain', 'tickets.fluxdesk.com.br');
+
+        // Procurar destinatário que termine com o domínio do sistema
+        foreach ($destinations as $destination) {
+            if (str_ends_with(strtolower($destination), '@' . strtolower($ticketDomain))) {
+                Log::info('E-mail do sistema encontrado', [
+                    'ticket_email' => $destination,
+                    'all_destinations' => $destinations,
+                ]);
+                return $destination;
+            }
+        }
+
+        // Fallback: retornar o primeiro destinatário
+        $firstDestination = $destinations[0];
+        
+        Log::warning('E-mail do sistema não encontrado, usando primeiro destinatário', [
+            'first_destination' => $firstDestination,
+            'all_destinations' => $destinations,
+            'expected_domain' => $ticketDomain,
+        ]);
+        
+        return $firstDestination;
     }
 
     /**
