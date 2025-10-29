@@ -1,6 +1,5 @@
 <?php
 
-use App\Http\Controllers\Api\EmailInboundController;
 use App\Http\Controllers\Api\MailgunInboundController;
 use Illuminate\Support\Facades\Route;
 
@@ -50,13 +49,3 @@ Route::post('/webhooks/mailgun-test', function (\Illuminate\Http\Request $reques
     'throttle:api',
 ]);
 
-// Webhook público do SNS/SES (mantido para compatibilidade/rollback)
-// Remova se não for mais usar o SES
-Route::post('/webhooks/ses-inbound', [EmailInboundController::class, 'handleSnsNotification'])
-    ->name('webhooks.ses.inbound')
-    ->withoutMiddleware([
-        \Illuminate\Auth\Middleware\Authenticate::class,
-        \App\Http\Middleware\IdentifyTenant::class,
-        'auth', 'auth:api', 'auth:sanctum',
-        'throttle:api',
-    ]);

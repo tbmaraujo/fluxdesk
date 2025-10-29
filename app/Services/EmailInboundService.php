@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Helpers\EmailParser;
 use App\Mail\TicketCreatedNotification;
 use App\Mail\TicketReplyNotification;
 use App\Models\Attachment;
@@ -188,110 +187,80 @@ class EmailInboundService
     }
 
     /**
-     * Processar e-mail recebido (suporta SES e Mailgun).
+     * Processar e-mail recebido do Mailgun.
      *
-     * @param array $messageContent
+     * @param array $payload
      * @return array
      */
-    public function processInboundEmail(array $messageContent): array
+    public function processInboundEmail(array $payload): array
     {
         try {
-            // Detectar origem: Mailgun ou SES
-            if ($this->isMailgunPayload($messageContent)) {
-                return $this->processMailgunEmail($messageContent);
+            // Extrair campos do Mailgun
+            $from = $payload['sender'] ?? $payload['from'] ?? '';
+            $to = $payload['recipient'] ?? $payload['to'] ?? '';
+            $subject = $payload['subject'] ?? 'Sem assunto';
+            $messageId = trim($payload['Message-Id'] ?? $payload['message-id'] ?? '', '<>');
+
+            Log::info('Processando e-mail recebido do Mailgun', [
+                'from' => $from,
+                'to' => $to,
+                'subject' => $subject,
+                'message_id' => $messageId,
+            ]);
+
+            // Extrair tenant_id do destinatário
+            $tenantId = $this->extractTenantId($to);
+
+            if (!$tenantId) {
+                throw new \Exception('Não foi possível extrair tenant_id do destinatário: ' . $to);
             }
-            
-            return $this->processSESEmail($messageContent);
+
+            // Validar se o tenant existe
+            $tenant = Tenant::find($tenantId);
+            if (!$tenant) {
+                throw new \Exception('Tenant não encontrado: ' . $tenantId);
+            }
+
+            // Montar parsedEmail a partir dos campos do Mailgun
+            $bodyPlain = $payload['body-plain'] ?? $payload['stripped-text'] ?? '';
+            $bodyHtml = $payload['body-html'] ?? '';
+            $strippedText = $payload['stripped-text'] ?? $bodyPlain;
+
+            $parsedEmail = [
+                'from' => $from,
+                'to' => $to,
+                'subject' => $subject,
+                'body_plain' => $bodyPlain,
+                'body_html' => $bodyHtml,
+                'body_text' => $strippedText ?: $bodyPlain,
+                'body' => $strippedText ?: $bodyPlain,
+                'attachments' => $this->extractMailgunAttachmentsArray($payload),
+            ];
+
+            Log::info('Email parseado com sucesso', [
+                'from' => $from,
+                'to' => $to,
+                'has_html' => !empty($bodyHtml),
+                'has_plain' => !empty($bodyPlain),
+                'attachments_count' => count($parsedEmail['attachments']),
+            ]);
+
+            // Verificar se é um novo ticket ou resposta
+            $ticketId = $this->extractTicketId($subject);
+
+            if ($ticketId) {
+                // É uma resposta a ticket existente
+                return $this->processReply($tenant, $ticketId, $from, $parsedEmail);
+            } else {
+                // É um novo ticket
+                return $this->processNewTicket($tenant, $from, $subject, $parsedEmail, $to);
+            }
         } catch (\Exception $e) {
             Log::error('Erro ao processar e-mail recebido', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
             throw $e;
-        }
-    }
-
-    /**
-     * Detectar se o payload é do Mailgun.
-     *
-     * @param array $payload
-     * @return bool
-     */
-    private function isMailgunPayload(array $payload): bool
-    {
-        // Mailgun tem campos: recipient, sender, body-plain
-        return isset($payload['recipient']) 
-            || isset($payload['sender'])
-            || isset($payload['body-plain']);
-    }
-
-    /**
-     * Processar e-mail do Mailgun.
-     *
-     * @param array $payload
-     * @return array
-     */
-    private function processMailgunEmail(array $payload): array
-    {
-        // Extrair campos do Mailgun
-        $from = $payload['sender'] ?? $payload['from'] ?? '';
-        $to = $payload['recipient'] ?? $payload['to'] ?? '';
-        $subject = $payload['subject'] ?? 'Sem assunto';
-        $messageId = trim($payload['Message-Id'] ?? $payload['message-id'] ?? '', '<>');
-
-        Log::info('Processando e-mail do Mailgun', [
-            'from' => $from,
-            'to' => $to,
-            'subject' => $subject,
-            'message_id' => $messageId,
-        ]);
-
-        // Extrair tenant_id do destinatário
-        $tenantId = $this->extractTenantId($to);
-
-        if (!$tenantId) {
-            throw new \Exception('Não foi possível extrair tenant_id do destinatário: ' . $to);
-        }
-
-        // Validar se o tenant existe
-        $tenant = Tenant::find($tenantId);
-        if (!$tenant) {
-            throw new \Exception('Tenant não encontrado: ' . $tenantId);
-        }
-
-        // Montar parsedEmail a partir dos campos do Mailgun
-        $bodyPlain = $payload['body-plain'] ?? $payload['stripped-text'] ?? '';
-        $bodyHtml = $payload['body-html'] ?? '';
-        $strippedText = $payload['stripped-text'] ?? $bodyPlain;
-
-        $parsedEmail = [
-            'from' => $from,
-            'to' => $to,
-            'subject' => $subject,
-            'body_plain' => $bodyPlain,
-            'body_html' => $bodyHtml,
-            'body_text' => $strippedText ?: $bodyPlain,
-            'body' => $strippedText ?: $bodyPlain,
-            'attachments' => $this->extractMailgunAttachmentsArray($payload),
-        ];
-
-        Log::info('Email do Mailgun parseado', [
-            'from' => $from,
-            'to' => $to,
-            'has_html' => !empty($bodyHtml),
-            'has_plain' => !empty($bodyPlain),
-            'attachments_count' => count($parsedEmail['attachments']),
-        ]);
-
-        // Verificar se é um novo ticket ou resposta
-        $ticketId = $this->extractTicketId($subject);
-
-        if ($ticketId) {
-            // É uma resposta a ticket existente
-            return $this->processReply($tenant, $ticketId, $from, $parsedEmail);
-        } else {
-            // É um novo ticket
-            return $this->processNewTicket($tenant, $from, $subject, $parsedEmail, $to);
         }
     }
 
@@ -321,164 +290,6 @@ class EmailInboundService
         return $attachments;
     }
 
-    /**
-     * Processar e-mail do SES.
-     *
-     * @param array $messageContent
-     * @return array
-     */
-    private function processSESEmail(array $messageContent): array
-    {
-        // Extrair informações do e-mail
-        $mail = $messageContent['mail'] ?? [];
-        $commonHeaders = $mail['commonHeaders'] ?? [];
-
-        $from = $mail['source'] ?? '';
-        $destinations = $mail['destination'] ?? [];
-        $subject = $commonHeaders['subject'] ?? 'Sem assunto';
-        $messageId = $mail['messageId'] ?? '';
-
-        // Log inicial com TODOS os destinatários
-        Log::info('Processando e-mail recebido do SES', [
-            'from' => $from,
-            'destinations' => $destinations,
-            'subject' => $subject,
-            'message_id' => $messageId,
-            'headers' => $commonHeaders,
-        ]);
-
-        // Encontrar o destinatário correto (prioritizar @tickets.fluxdesk.com.br)
-        // Busca em: destinations, headers To, X-Original-To, etc
-        $to = $this->findTicketEmailAddress($destinations, $commonHeaders);
-
-        // Extrair tenant_id do destinatário (ex: 1234@tickets.fluxdesk.com.br)
-        $tenantId = $this->extractTenantId($to);
-
-        if (!$tenantId) {
-            throw new \Exception('Não foi possível extrair tenant_id do destinatário: ' . $to . ' (todos destinatários: ' . implode(', ', $destinations) . ')');
-        }
-
-        // Validar se o tenant existe
-        $tenant = Tenant::find($tenantId);
-        if (!$tenant) {
-            throw new \Exception('Tenant não encontrado: ' . $tenantId);
-        }
-
-        // Verificar se o conteúdo já está no payload (Mailgun) ou precisa buscar do S3 (SES)
-        if (isset($messageContent['content'])) {
-            // Payload do Mailgun com conteúdo inline
-            $parsedEmail = [
-                'from' => $from,
-                'to' => $to,
-                'subject' => $subject,
-                'body_plain' => $messageContent['content']['plain'] ?? '',
-                'body_html' => $messageContent['content']['html'] ?? '',
-                'body' => $messageContent['content']['stripped_text'] ?? $messageContent['content']['plain'] ?? '',
-                'attachments' => $messageContent['attachments'] ?? [],
-            ];
-        } else {
-            // Payload do SES - baixar conteúdo completo do S3 (se configurado)
-            $emailContent = $this->fetchEmailFromS3($messageContent);
-            
-            // Parsear o e-mail
-            $parsedEmail = EmailParser::parse($emailContent);
-        }
-
-        // Usar o endereço do remetente extraído do e-mail parseado (From: header)
-        // em vez do mail.source que pode ser um endereço de bounce/envelope
-        $senderEmail = $parsedEmail['from'] ?? $from;
-        
-        Log::info('Remetente identificado', [
-            'envelope_source' => $from,
-            'parsed_from' => $parsedEmail['from'] ?? null,
-            'using' => $senderEmail,
-        ]);
-
-        // Verificar se é um novo ticket ou resposta
-        $ticketId = $this->extractTicketId($subject);
-
-        if ($ticketId) {
-            // É uma resposta a ticket existente
-            return $this->processReply($tenant, $ticketId, $senderEmail, $parsedEmail);
-        } else {
-            // É um novo ticket
-            return $this->processNewTicket($tenant, $senderEmail, $subject, $parsedEmail, $to);
-        }
-    }
-
-    /**
-     * Encontrar o endereço de e-mail correto do sistema de tickets.
-     * Procura por e-mails que terminam com o domínio configurado (ex: @tickets.fluxdesk.com.br).
-     * Útil para e-mails encaminhados onde há múltiplos destinatários.
-     *
-     * @param array $destinations Lista de destinatários do e-mail
-     * @param array $headers Headers do e-mail
-     * @return string
-     */
-    private function findTicketEmailAddress(array $destinations, array $headers = []): string
-    {
-        // Domínio do sistema de tickets (pode ser configurado no .env)
-        $ticketDomain = config('mail.ticket_domain', 'tickets.fluxdesk.com.br');
-
-        // 1. Procurar nos destinatários SES
-        if (!empty($destinations)) {
-            foreach ($destinations as $destination) {
-                if (str_ends_with(strtolower($destination), '@' . strtolower($ticketDomain))) {
-                    Log::info('E-mail do sistema encontrado nos destinations', [
-                        'ticket_email' => $destination,
-                        'all_destinations' => $destinations,
-                    ]);
-                    return $destination;
-                }
-            }
-        }
-
-        // 2. Procurar no header 'To' original
-        if (isset($headers['to']) && is_array($headers['to'])) {
-            foreach ($headers['to'] as $toAddress) {
-                if (str_ends_with(strtolower($toAddress), '@' . strtolower($ticketDomain))) {
-                    Log::info('E-mail do sistema encontrado no header To', [
-                        'ticket_email' => $toAddress,
-                        'header_to' => $headers['to'],
-                    ]);
-                    return $toAddress;
-                }
-            }
-        }
-
-        // 3. Procurar no header 'To' como string
-        if (isset($headers['to']) && is_string($headers['to'])) {
-            // Pode vir como: "Nome <email@domain.com>, Outro <outro@domain.com>"
-            if (preg_match_all('/<([^>]+@' . preg_quote($ticketDomain, '/') . ')>/i', $headers['to'], $matches)) {
-                $foundEmail = $matches[1][0];
-                Log::info('E-mail do sistema encontrado no header To (string)', [
-                    'ticket_email' => $foundEmail,
-                    'header_to' => $headers['to'],
-                ]);
-                return $foundEmail;
-            }
-            
-            // Ou pode vir direto: "email@domain.com"
-            if (str_ends_with(strtolower($headers['to']), '@' . strtolower($ticketDomain))) {
-                Log::info('E-mail do sistema encontrado no header To (direto)', [
-                    'ticket_email' => $headers['to'],
-                ]);
-                return $headers['to'];
-            }
-        }
-
-        // 4. Fallback: retornar o primeiro destinatário
-        $firstDestination = $destinations[0] ?? '';
-        
-        Log::warning('E-mail do sistema não encontrado em nenhum campo', [
-            'first_destination' => $firstDestination,
-            'all_destinations' => $destinations,
-            'headers_to' => $headers['to'] ?? null,
-            'expected_domain' => $ticketDomain,
-        ]);
-        
-        return $firstDestination;
-    }
 
     /**
      * Extrair tenant_id do endereço de e-mail (ex: 1234@tickets.fluxdesk.com.br).
@@ -583,46 +394,6 @@ class EmailInboundService
         return null;
     }
 
-    /**
-     * Buscar conteúdo completo do e-mail no S3.
-     *
-     * @param array $messageContent
-     * @return string
-     */
-    private function fetchEmailFromS3(array $messageContent): string
-    {
-        // Se o SES está configurado para salvar no S3
-        $receipt = $messageContent['receipt'] ?? [];
-        $action = $receipt['action'] ?? [];
-
-        if (isset($action['type']) && $action['type'] === 'S3' && isset($action['objectKey'])) {
-            $bucket = $action['bucketName'] ?? config('services.ses.s3_bucket');
-            $key = $action['objectKey'];
-
-            try {
-                // Usar o disco S3 do Laravel
-                return Storage::disk('s3')->get($key);
-            } catch (\Exception $e) {
-                Log::warning('Erro ao buscar e-mail do S3, usando conteúdo parcial', [
-                    'bucket' => $bucket,
-                    'key' => $key,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        }
-
-        // Fallback: retornar o conteúdo disponível na notificação
-        $mail = $messageContent['mail'] ?? [];
-        $commonHeaders = $mail['commonHeaders'] ?? [];
-
-        return json_encode([
-            'from' => $mail['source'] ?? '',
-            'to' => $mail['destination'] ?? [],
-            'subject' => $commonHeaders['subject'] ?? '',
-            'date' => $commonHeaders['date'] ?? '',
-            'messageId' => $mail['messageId'] ?? '',
-        ]);
-    }
 
     /**
      * Processar novo ticket a partir do e-mail.

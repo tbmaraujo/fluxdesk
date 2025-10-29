@@ -3,7 +3,7 @@
 
 **Stack:** Laravel 11 + Inertia (React + TypeScript) + Tailwind + shadcn/ui + PostgreSQL + Redis  
 **Filas/Jobs:** Laravel Queues (Redis) — `queue:work` (sem Octane e sem Horizon)  
-**E-mail:** Amazon SES — **região: us-east-2**  
+**E-mail:** Mailgun  
 **Autenticação:** Laravel Breeze/Fortify (se aplicável)  
 **Build Frontend:** Vite + pnpm
 
@@ -114,7 +114,7 @@ routes/
 
 ---
 
-## Ambiente & Amazon SES (us-east-2)
+## Ambiente & Mailgun
 `.env` básico (exemplo):
 ```env
 APP_ENV=local
@@ -134,26 +134,31 @@ REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 QUEUE_CONNECTION=redis
 
-# E-mail — Amazon SES
-MAIL_MAILER=ses
+# E-mail — Mailgun
+MAIL_MAILER=mailgun
 MAIL_FROM_ADDRESS="noreply@seu-dominio.com.br"
 MAIL_FROM_NAME="Fluxdesk"
 
-AWS_ACCESS_KEY_ID=xxxxx
-AWS_SECRET_ACCESS_KEY=xxxxx
-AWS_DEFAULT_REGION=us-east-2
-SES_REGION=us-east-2
+MAILGUN_DOMAIN=mg.seu-dominio.com.br
+MAILGUN_SECRET=key-xxxxx
+MAILGUN_SIGNING_KEY=xxxxx
+MAILGUN_ENDPOINT=api.mailgun.net
+
+# Reply-To com HMAC (evita loops)
+REPLY_HMAC_SECRET=seu-secret-aleatorio
+MAIL_REPLY_DOMAIN=tickets.fluxdesk.com.br
 ```
 
 **Boas práticas de e-mail**
-- Produção: domínio verificado, **SPF/DKIM/DMARC** corretos.
-- Dev (sandbox): verifique remetentes/destinatários no console do SES.
+- Produção: domínio verificado no Mailgun, **SPF/DKIM/DMARC** corretos.
+- Dev: adicione destinatários autorizados no sandbox do Mailgun.
 - Envio **assíncrono** via fila (`queue:work`).  
-- Monitorar **bounces/complaints** (SNS → webhook/queue).
+- Monitorar **bounces/complaints** via webhook do Mailgun.
 
-**Inbound (abrir chamados por e-mail)** — opcional:
-- SES **Receipt Rule → S3** (e opcional Lambda) para armazenar/processar.
-- Processar a mensagem **assíncrona** (job), persistindo `Message-ID` para **idempotência**.
+**Inbound (abrir chamados por e-mail)**:
+- Mailgun **Routes** → POST para `/api/webhooks/mailgun-inbound`
+- Processar a mensagem **assíncrona** (job), usando `Message-ID` para **idempotência**.
+- Suporta identificação por: Reply-To HMAC, Threading headers, Subject [TKT-ID]
 
 ---
 
@@ -168,8 +173,9 @@ php artisan config:cache && php artisan route:cache && php artisan view:cache
 # Supervisione queue workers com Supervisor/Systemd:
 #   php artisan queue:work --sleep=1 --max-time=3600 --max-jobs=1000
 ```
-- Defina variáveis **SES** (us-east-2) no ambiente.
+- Defina variáveis **Mailgun** no ambiente.
 - Healthchecks do app e verificação do **queue:work** ativo.
+- Configure **Mailgun Routes** apontando para seu webhook.
 
 ---
 
