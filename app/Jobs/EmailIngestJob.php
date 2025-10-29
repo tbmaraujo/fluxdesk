@@ -43,7 +43,18 @@ class EmailIngestJob implements ShouldQueue
      */
     public function handle(EmailInboundService $emailInboundService): void
     {
+        // Lock atômico para prevenir processamento simultâneo do mesmo e-mail
+        $lock = \Illuminate\Support\Facades\Cache::lock('email_ingest_' . $this->messageId, 120);
+
         try {
+            // Tentar adquirir lock (espera até 10 segundos)
+            if (!$lock->block(10)) {
+                Log::warning('Não foi possível adquirir lock para processar e-mail', [
+                    'message_id' => $this->messageId,
+                ]);
+                return;
+            }
+
             // 1. Buscar registro de e-mail (já foi criado pelo controller)
             $ticketEmail = TicketEmail::where('message_id', $this->messageId)->first();
 
@@ -120,6 +131,9 @@ class EmailIngestJob implements ShouldQueue
 
             // Re-lançar exceção para que o Laravel gerencie os retries
             throw $e;
+        } finally {
+            // Sempre liberar o lock
+            optional($lock)->release();
         }
     }
 
