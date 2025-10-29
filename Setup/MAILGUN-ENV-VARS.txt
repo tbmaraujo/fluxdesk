@@ -1,0 +1,50 @@
+# ===========================
+# VARIÁVEIS DE AMBIENTE - MAILGUN
+# ===========================
+# Copie estas variáveis para seu arquivo .env
+
+# Driver principal (trocar de 'ses' para 'mailgun')
+MAIL_MAILER=mailgun
+MAIL_FROM_ADDRESS="noreply@seudominio.com.br"
+MAIL_FROM_NAME="Fluxdesk"
+
+# Credenciais Mailgun
+# Obtenha em: https://app.mailgun.com/app/sending/domains
+MAILGUN_DOMAIN=seudominio.com.br
+MAILGUN_SECRET=key-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+MAILGUN_ENDPOINT=api.mailgun.net
+
+# Região EU (se você criou o domínio na região Europa)
+# MAILGUN_ENDPOINT=api.eu.mailgun.net
+
+# Webhook Signing Key do Mailgun
+# Obtenha em: https://app.mailgun.com/app/account/security/api_keys
+MAILGUN_WEBHOOK_SIGNING_KEY=whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+
+# Domínio para recebimento de tickets por e-mail
+# Ex: tenant_id@tickets.fluxdesk.com.br
+MAIL_TICKET_DOMAIN=tickets.fluxdesk.com.br
+
+# ===========================
+# VARIÁVEIS SES (MANTER PARA ROLLBACK)
+# ===========================
+# Comentadas por padrão, descomente se precisar voltar para SES
+
+# MAIL_MAILER=ses
+# AWS_ACCESS_KEY_ID=xxx
+# AWS_SECRET_ACCESS_KEY=xxx
+# AWS_DEFAULT_REGION=us-east-2
+# AWS_BUCKET=
+# SES_REGION=us-east-2
+# SES_WEBHOOK_SECRET=
+# SES_SNS_TOPIC_ARN=
+# AWS_SES_S3_BUCKET=
+
+# ===========================
+# FILAS (OBRIGATÓRIO)
+# ===========================
+# Certifique-se de que o Redis está configurado
+QUEUE_CONNECTION=redis
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
+

@@ -9,11 +9,13 @@
         "php": "^8.2",
         "aws/aws-sdk-php": "^3.357",
         "fakerphp/faker": "^1.23",
+        "guzzlehttp/guzzle": "^7.10",
         "inertiajs/inertia-laravel": "^2.0",
         "laravel/framework": "^12.0",
         "laravel/sanctum": "^4.0",
         "laravel/tinker": "^2.10.1",
         "league/flysystem-aws-s3-v3": "^3.30",
+        "mailgun/mailgun-php": "^4.3",
         "spatie/laravel-pdf": "^1.8",
         "tightenco/ziggy": "^2.0"
     },

@@ -76,11 +76,25 @@ class EmailInboundService
                 throw new \Exception('Tenant não encontrado: ' . $tenantId);
             }
 
-            // Baixar conteúdo completo do e-mail do S3 (se configurado)
-            $emailContent = $this->fetchEmailFromS3($messageContent);
-
-            // Parsear o e-mail
-            $parsedEmail = EmailParser::parse($emailContent);
+            // Verificar se o conteúdo já está no payload (Mailgun) ou precisa buscar do S3 (SES)
+            if (isset($messageContent['content'])) {
+                // Payload do Mailgun com conteúdo inline
+                $parsedEmail = [
+                    'from' => $from,
+                    'to' => $to,
+                    'subject' => $subject,
+                    'body_plain' => $messageContent['content']['plain'] ?? '',
+                    'body_html' => $messageContent['content']['html'] ?? '',
+                    'body' => $messageContent['content']['stripped_text'] ?? $messageContent['content']['plain'] ?? '',
+                    'attachments' => $messageContent['attachments'] ?? [],
+                ];
+            } else {
+                // Payload do SES - baixar conteúdo completo do S3 (se configurado)
+                $emailContent = $this->fetchEmailFromS3($messageContent);
+                
+                // Parsear o e-mail
+                $parsedEmail = EmailParser::parse($emailContent);
+            }
 
             // Usar o endereço do remetente extraído do e-mail parseado (From: header)
             // em vez do mail.source que pode ser um endereço de bounce/envelope
