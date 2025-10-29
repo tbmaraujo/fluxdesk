@@ -110,6 +110,38 @@ else
     print_success "Deploy gerenciado - código já foi atualizado pela ferramenta"
 fi
 
+# Passo 1.5: Verificar e corrigir permissões
+print_info "Verificando permissões..."
+
+# Verificar se storage é gravável
+if [ ! -w "storage/logs" ]; then
+    print_warning "Storage não é gravável. Tentando corrigir permissões..."
+    
+    # Tentar sem sudo primeiro
+    chmod -R 775 storage 2>/dev/null || true
+    chmod -R 775 bootstrap/cache 2>/dev/null || true
+    
+    # Se ainda não funcionar, tentar com sudo
+    if [ ! -w "storage/logs" ]; then
+        print_warning "Necessário sudo para corrigir permissões..."
+        sudo chown -R www-data:www-data "$PWD" || print_warning "Falha ao alterar dono (ignorando)"
+        sudo chmod -R 775 "$PWD/storage" || print_warning "Falha ao alterar permissões storage"
+        sudo chmod -R 775 "$PWD/bootstrap/cache" || print_warning "Falha ao alterar permissões cache"
+        
+        if [ ! -w "storage/logs" ]; then
+            print_error "Não foi possível corrigir permissões do storage"
+            print_info "Execute manualmente:"
+            echo "  sudo chown -R www-data:www-data $PWD"
+            echo "  sudo chmod -R 775 $PWD/storage"
+            echo "  sudo chmod -R 775 $PWD/bootstrap/cache"
+            exit 1
+        fi
+    fi
+    print_success "Permissões corrigidas"
+else
+    print_success "Permissões OK"
+fi
+
 # Passo 2: Instalar dependências
 print_info "Instalando dependências do Composer..."
 composer install --no-dev --optimize-autoloader --no-interaction
@@ -117,6 +149,7 @@ if [ $? -eq 0 ]; then
     print_success "Dependências instaladas"
 else
     print_error "Falha ao instalar dependências"
+    print_warning "Verifique se há problemas de permissões acima"
     exit 1
 fi
 
