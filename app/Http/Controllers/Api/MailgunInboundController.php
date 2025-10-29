@@ -55,12 +55,33 @@ class MailgunInboundController extends Controller
                 'message_id' => $messageId,
             ]);
 
-            // Verificar idempotência (evitar processar e-mail duplicado)
-            if ($messageId && TicketEmail::where('message_id', $messageId)->exists()) {
-                Log::info('E-mail já processado (idempotência)', [
+            // Criar registro de TicketEmail ANTES de despachar o job
+            // O unique constraint em message_id protege contra duplicatas (race condition)
+            try {
+                $ticketEmail = TicketEmail::create([
+                    'message_id' => $messageId,
+                    'from' => $sender,
+                    'to' => $recipient,
+                    'subject' => $subject,
+                    'status' => 'queued',
+                    'received_at' => now(),
+                ]);
+
+                Log::info('Registro de e-mail criado', [
+                    'ticket_email_id' => $ticketEmail->id,
                     'message_id' => $messageId,
                 ]);
-                return response()->json(['ok' => true, 'status' => 'already_processed'], 200);
+            } catch (\Illuminate\Database\QueryException $e) {
+                // Se já existe (violação do unique constraint), retornar sucesso
+                if ($e->getCode() === '23000' || str_contains($e->getMessage(), 'Duplicate entry')) {
+                    Log::info('E-mail já processado (idempotência via unique constraint)', [
+                        'message_id' => $messageId,
+                    ]);
+                    return response()->json(['ok' => true, 'status' => 'already_processed'], 200);
+                }
+                
+                // Outro erro, propagar
+                throw $e;
             }
 
             // Processar anexos

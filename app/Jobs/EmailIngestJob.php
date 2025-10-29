@@ -44,26 +44,16 @@ class EmailIngestJob implements ShouldQueue
     public function handle(EmailInboundService $emailInboundService): void
     {
         try {
-            // 1. Verificar idempotência - se já foi processado, pular
-            $existingEmail = TicketEmail::where('message_id', $this->messageId)->first();
+            // 1. Buscar registro de e-mail (já foi criado pelo controller)
+            $ticketEmail = TicketEmail::where('message_id', $this->messageId)->first();
 
-            if ($existingEmail) {
-                if ($existingEmail->isProcessed()) {
-                    Log::info('Email já processado anteriormente', [
-                        'message_id' => $this->messageId,
-                        'ticket_id' => $existingEmail->ticket_id,
-                    ]);
-                    return;
-                }
-
-                if ($existingEmail->isFailed()) {
-                    Log::warning('Reprocessando email que falhou anteriormente', [
-                        'message_id' => $this->messageId,
-                    ]);
-                }
-            } else {
-                // 2. Criar registro de TicketEmail
-                $existingEmail = TicketEmail::create([
+            if (!$ticketEmail) {
+                // Fallback: criar se não existir (proteção extra)
+                Log::warning('Registro de e-mail não encontrado, criando agora', [
+                    'message_id' => $this->messageId,
+                ]);
+                
+                $ticketEmail = TicketEmail::create([
                     'message_id' => $this->messageId,
                     'from' => $this->from,
                     'to' => $this->to,
@@ -75,12 +65,34 @@ class EmailIngestJob implements ShouldQueue
                 ]);
             }
 
-            // 3. Processar email usando o serviço existente
+            // 2. Verificar se já foi processado (idempotência)
+            if ($ticketEmail->isProcessed()) {
+                Log::info('Email já processado anteriormente', [
+                    'message_id' => $this->messageId,
+                    'ticket_id' => $ticketEmail->ticket_id,
+                ]);
+                return;
+            }
+
+            if ($ticketEmail->isFailed()) {
+                Log::warning('Reprocessando email que falhou anteriormente', [
+                    'message_id' => $this->messageId,
+                ]);
+            }
+
+            // 3. Atualizar raw payload se ainda não tiver
+            if ($this->rawPayload && !$ticketEmail->raw) {
+                $ticketEmail->update([
+                    'raw' => json_encode($this->rawPayload),
+                ]);
+            }
+
+            // 4. Processar email usando o serviço existente
             if ($this->rawPayload) {
                 $result = $emailInboundService->processInboundEmail($this->rawPayload);
 
-                // 4. Atualizar registro como processado
-                $existingEmail->markAsProcessed($result['ticket_id'] ?? null);
+                // 5. Atualizar registro como processado
+                $ticketEmail->markAsProcessed($result['ticket_id'] ?? null);
 
                 Log::info('Email ingerido e processado com sucesso', [
                     'message_id' => $this->messageId,
@@ -89,7 +101,7 @@ class EmailIngestJob implements ShouldQueue
                 ]);
             } else {
                 // Se não tiver payload completo, marcar como processado mas sem criar ticket
-                $existingEmail->markAsProcessed();
+                $ticketEmail->markAsProcessed();
                 Log::warning('Email ingerido sem payload completo', [
                     'message_id' => $this->messageId,
                 ]);
@@ -102,8 +114,8 @@ class EmailIngestJob implements ShouldQueue
             ]);
 
             // Marcar como falho
-            if (isset($existingEmail)) {
-                $existingEmail->markAsFailed($e->getMessage());
+            if (isset($ticketEmail)) {
+                $ticketEmail->markAsFailed($e->getMessage());
             }
 
             // Re-lançar exceção para que o Laravel gerencie os retries
