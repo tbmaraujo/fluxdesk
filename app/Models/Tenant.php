@@ -19,6 +19,7 @@ class Tenant extends Model
         'name',
         'cnpj',
         'slug',
+        'email_code',
         'domain',
         'data',
         'is_active',

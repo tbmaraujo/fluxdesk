@@ -17,7 +17,8 @@ class VerifyMailgunSignature
      */
     public function handle(Request $request, Closure $next): Response
     {
-        $signingKey = config('services.mailgun.webhook_signing_key');
+        // Preferir signing_key (com fallback) ao invés de webhook_signing_key
+        $signingKey = config('services.mailgun.signing_key') ?: config('services.mailgun.webhook_signing_key');
 
         // Se não houver signing key configurada, pular validação (dev)
         if (empty($signingKey)) {

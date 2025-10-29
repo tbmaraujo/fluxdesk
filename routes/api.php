@@ -26,6 +26,30 @@ Route::post('/webhooks/mailgun-inbound', [MailgunInboundController::class, 'hand
         'throttle:api',
     ]);
 
+// Endpoint de teste/diagnóstico (SEM validação de assinatura)
+// REMOVER EM PRODUÇÃO após testar
+Route::post('/webhooks/mailgun-test', function (\Illuminate\Http\Request $request) {
+    \Illuminate\Support\Facades\Log::info('=== MAILGUN TEST ENDPOINT ===', [
+        'timestamp' => now()->toIso8601String(),
+        'ip' => $request->ip(),
+        'user_agent' => $request->userAgent(),
+        'method' => $request->method(),
+        'all_data' => $request->all(),
+        'headers' => $request->headers->all(),
+    ]);
+    
+    return response()->json([
+        'status' => 'received',
+        'timestamp' => now()->toIso8601String(),
+        'data_received' => $request->all(),
+    ], 200);
+})->withoutMiddleware([
+    \Illuminate\Auth\Middleware\Authenticate::class,
+    \App\Http\Middleware\IdentifyTenant::class,
+    'auth', 'auth:api', 'auth:sanctum',
+    'throttle:api',
+]);
+
 // Webhook público do SNS/SES (mantido para compatibilidade/rollback)
 // Remova se não for mais usar o SES
 Route::post('/webhooks/ses-inbound', [EmailInboundController::class, 'handleSnsNotification'])

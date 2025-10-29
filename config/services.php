@@ -19,6 +19,9 @@ return [
         'secret' => env('MAILGUN_SECRET'),
         'endpoint' => env('MAILGUN_ENDPOINT', 'api.mailgun.net'),
         'scheme' => 'https',
+        // Webhook signing key (ordem: SIGNING_KEY -> WEBHOOK_SIGNING_KEY -> SECRET como fallback)
+        'signing_key' => env('MAILGUN_SIGNING_KEY', env('MAILGUN_WEBHOOK_SIGNING_KEY', env('MAILGUN_SECRET'))),
+        // Manter retrocompatibilidade
         'webhook_signing_key' => env('MAILGUN_WEBHOOK_SIGNING_KEY'),
     ],
 
