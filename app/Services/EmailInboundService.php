@@ -250,20 +250,11 @@ class EmailInboundService
             }
         }
         
-        // 3. Extrair a parte antes do @ (pode ser: ID, slug, ou CNPJ)
+        // 3. Extrair a parte antes do @ (pode ser: slug, ID ou CNPJ)
         if (preg_match('/^([a-zA-Z0-9_-]+)@/', $email, $matches)) {
             $identifier = $matches[1];
             
-            // Se for apenas números pequenos (ID), usar diretamente
-            if (ctype_digit($identifier) && strlen($identifier) <= 10) {
-                Log::info('Tenant identificado por ID numérico', [
-                    'identifier' => $identifier,
-                    'email' => $email,
-                ]);
-                return (int) $identifier;
-            }
-            
-            // Buscar tenant por: slug ou CNPJ
+            // Prioridade 1: Buscar tenant por SLUG ou CNPJ primeiro
             $tenant = Tenant::where('slug', $identifier)
                 ->orWhere('cnpj', $identifier)
                 ->first();
@@ -275,6 +266,15 @@ class EmailInboundService
                     'tenant_slug' => $tenant->slug,
                 ]);
                 return $tenant->id;
+            }
+            
+            // Prioridade 2: Se não encontrou e for apenas números, tentar por ID
+            if (ctype_digit($identifier) && strlen($identifier) <= 10) {
+                Log::info('Tenant identificado por ID numérico (fallback)', [
+                    'identifier' => $identifier,
+                    'email' => $email,
+                ]);
+                return (int) $identifier;
             }
             
             Log::warning('Tenant não encontrado em nenhum método', [

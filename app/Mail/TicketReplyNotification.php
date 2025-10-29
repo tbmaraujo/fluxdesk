@@ -27,10 +27,16 @@ class TicketReplyNotification extends Mailable
      */
     public function envelope(): Envelope
     {
+        // Usar slug do tenant para o Reply-To
+        $tenant = $this->ticket->tenant;
+        $replyToAddress = ($tenant && $tenant->slug) 
+            ? $tenant->slug . '@tickets.fluxdesk.com.br'
+            : $this->ticket->tenant_id . '@tickets.fluxdesk.com.br'; // Fallback para ID
+        
         return new Envelope(
             subject: 'Re: [TKT-' . $this->ticket->id . '] ' . $this->ticket->title,
             replyTo: [
-                $this->ticket->tenant_id . '@tickets.fluxdesk.com.br',
+                $replyToAddress,
             ],
         );
     }
