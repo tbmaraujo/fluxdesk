@@ -12,6 +12,28 @@ echo "🚀 Deploy da Migração Mailgun - Fluxdesk"
 echo "========================================"
 echo ""
 
+# Verificar se está rodando com sudo
+if [ "$EUID" -eq 0 ]; then 
+    echo -e "\033[0;31m⚠ AVISO: Você está rodando este script como ROOT (sudo)\033[0m"
+    echo ""
+    echo "Isso pode causar problemas de permissões!"
+    echo "Recomendado: rode sem sudo e configure sudoers para supervisorctl"
+    echo ""
+    echo "Deseja continuar mesmo assim? (y/n)"
+    read -r response
+    if [[ ! "$response" =~ ^[Yy]$ ]]; then
+        echo "Deploy cancelado."
+        echo ""
+        echo "Para rodar sem sudo, configure:"
+        echo "  sudo visudo"
+        echo ""
+        echo "E adicione:"
+        echo "  ubuntu ALL=(ALL) NOPASSWD: /usr/bin/supervisorctl restart fluxdesk-worker:*"
+        exit 0
+    fi
+    echo ""
+fi
+
 # Cores para output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
