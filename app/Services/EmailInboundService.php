@@ -33,6 +33,161 @@ class EmailInboundService
     }
 
     /**
+     * Process direct reply via HMAC-validated Reply-To.
+     * Avoids loops by NOT sending notifications.
+     *
+     * @param int $ticketId
+     * @param string|null $tenantSlug
+     * @param string $fromEmail
+     * @param array $payload
+     * @param string $messageId
+     * @return array
+     */
+    public function processDirectReply(
+        int $ticketId,
+        ?string $tenantSlug,
+        string $fromEmail,
+        array $payload,
+        string $messageId
+    ): array {
+        try {
+            // Buscar ticket
+            $ticket = Ticket::with('tenant')->find($ticketId);
+            
+            if (!$ticket) {
+                throw new \Exception("Ticket não encontrado: {$ticketId}");
+            }
+
+            // Validar tenant se slug foi fornecido
+            if ($tenantSlug && $ticket->tenant->slug !== $tenantSlug) {
+                throw new \Exception("Tenant slug mismatch. Expected: {$ticket->tenant->slug}, Got: {$tenantSlug}");
+            }
+
+            // Extrair conteúdo do e-mail (Mailgun format)
+            $bodyPlain = $payload['body-plain'] ?? $payload['stripped-text'] ?? '';
+            $bodyHtml = $payload['body-html'] ?? '';
+            $strippedText = $payload['stripped-text'] ?? $bodyPlain;
+
+            // Usar stripped-text (remove assinaturas) se disponível
+            $content = !empty($strippedText) ? $strippedText : $bodyPlain;
+
+            if (empty($content) && !empty($bodyHtml)) {
+                // Fallback: converter HTML para texto
+                $content = strip_tags($bodyHtml);
+            }
+
+            // Criar reply/comment no ticket
+            DB::beginTransaction();
+
+            $reply = Reply::create([
+                'ticket_id' => $ticket->id,
+                'user_id' => null, // Resposta externa (cliente)
+                'content' => $content,
+                'is_internal' => false,
+                'external_message_id' => $messageId, // Para idempotência
+            ]);
+
+            // Processar anexos (se houver)
+            $attachmentCount = (int) ($payload['attachment-count'] ?? 0);
+            if ($attachmentCount > 0) {
+                $this->processMailgunAttachments($ticket, $reply, $payload, $attachmentCount);
+            }
+
+            // Atualizar status do ticket se necessário
+            if ($ticket->status === 'CLOSED' || $ticket->status === 'RESOLVED') {
+                $ticket->update(['status' => 'IN_PROGRESS']);
+            }
+
+            DB::commit();
+
+            Log::info('Resposta direta processada via Reply-To HMAC', [
+                'ticket_id' => $ticket->id,
+                'reply_id' => $reply->id,
+                'from' => $fromEmail,
+                'message_id' => $messageId,
+            ]);
+
+            // NÃO enviar notificações para evitar loops
+            // O atendente verá a resposta no painel
+
+            return [
+                'action' => 'reply_added_direct',
+                'ticket_id' => $ticket->id,
+                'reply_id' => $reply->id,
+                'tenant_id' => $ticket->tenant_id,
+            ];
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Log::error('Erro ao processar resposta direta', [
+                'ticket_id' => $ticketId,
+                'from' => $fromEmail,
+                'error' => $e->getMessage(),
+            ]);
+            
+            throw $e;
+        }
+    }
+
+    /**
+     * Process Mailgun attachments.
+     */
+    private function processMailgunAttachments(Ticket $ticket, Reply $reply, array $payload, int $count): void
+    {
+        for ($i = 1; $i <= $count; $i++) {
+            $key = "attachment-{$i}";
+            
+            if (isset($payload[$key])) {
+                // Mailgun envia anexos como base64 ou arquivo
+                $attachment = $payload[$key];
+                
+                try {
+                    // Se for string, é base64
+                    if (is_string($attachment)) {
+                        $content = base64_decode($attachment);
+                        $filename = $payload["attachment-{$i}-name"] ?? "attachment-{$i}";
+                        $mimeType = $payload["attachment-{$i}-type"] ?? 'application/octet-stream';
+                        $size = strlen($content);
+                    } else {
+                        // É um arquivo (não deveria acontecer via webhook, mas suporte para testes)
+                        continue;
+                    }
+
+                    // Salvar anexo
+                    $uniqueFilename = time() . '_' . uniqid() . '_' . $filename;
+                    $path = 'attachments/' . $uniqueFilename;
+                    Storage::disk('public')->put($path, $content);
+
+                    Attachment::create([
+                        'ticket_id' => $ticket->id,
+                        'reply_id' => $reply->id,
+                        'user_id' => null,
+                        'filename' => $uniqueFilename,
+                        'original_name' => $filename,
+                        'path' => $path,
+                        'size' => $size,
+                        'mime_type' => $mimeType,
+                    ]);
+
+                    Log::info('Anexo processado de resposta direta', [
+                        'ticket_id' => $ticket->id,
+                        'reply_id' => $reply->id,
+                        'filename' => $filename,
+                    ]);
+                } catch (\Exception $e) {
+                    Log::error('Erro ao processar anexo', [
+                        'ticket_id' => $ticket->id,
+                        'filename' => $filename ?? "attachment-{$i}",
+                        'error' => $e->getMessage(),
+                    ]);
+                    // Continuar processando outros anexos
+                }
+            }
+        }
+    }
+
+    /**
      * Processar e-mail recebido do SES.
      *
      * @param array $messageContent

@@ -27,11 +27,8 @@ class TicketReplyNotification extends Mailable
      */
     public function envelope(): Envelope
     {
-        // Usar slug do tenant para o Reply-To
-        $tenant = $this->ticket->tenant;
-        $replyToAddress = ($tenant && $tenant->slug) 
-            ? $tenant->slug . '@tickets.fluxdesk.com.br'
-            : $this->ticket->tenant_id . '@tickets.fluxdesk.com.br'; // Fallback para ID
+        // Gerar Reply-To com HMAC para identificação segura
+        $replyToAddress = $this->generateSecureReplyTo();
         
         return new Envelope(
             subject: 'Re: [TKT-' . $this->ticket->id . '] ' . $this->ticket->title,
@@ -39,6 +36,47 @@ class TicketReplyNotification extends Mailable
                 $replyToAddress,
             ],
         );
+    }
+
+    /**
+     * Generate secure Reply-To address with HMAC.
+     */
+    protected function generateSecureReplyTo(): string
+    {
+        $tenant = $this->ticket->tenant;
+        $slug = $tenant?->slug ?? $this->ticket->tenant_id;
+        $ticketId = $this->ticket->id;
+        $secret = config('services.reply.hmac_secret');
+        
+        if (empty($secret)) {
+            // Fallback para formato antigo se HMAC não configurado
+            return "{$slug}@" . config('services.reply.domain', 'tickets.fluxdesk.com.br');
+        }
+        
+        // Gerar HMAC (10 caracteres do meio do hash)
+        $hmac = substr(hash_hmac('sha256', "{$slug}|{$ticketId}", $secret), 10, 10);
+        $domain = config('services.reply.domain', 'tickets.fluxdesk.com.br');
+        
+        return "reply+tkt.{$slug}.{$ticketId}.{$hmac}@{$domain}";
+    }
+
+    /**
+     * Handle after the mail is sent.
+     */
+    public function sent(\Illuminate\Mail\SentMessage $message): void
+    {
+        // Registrar notificação para threading
+        $messageId = $message->getMessageId();
+        
+        if ($messageId) {
+            \App\Models\TicketNotification::create([
+                'ticket_id' => $this->ticket->id,
+                'tenant_slug' => $this->ticket->tenant?->slug ?? (string) $this->ticket->tenant_id,
+                'message_id' => trim($messageId, '<>'),
+                'reply_to' => $this->generateSecureReplyTo(),
+                'sent_at' => now(),
+            ]);
+        }
     }
 
     /**

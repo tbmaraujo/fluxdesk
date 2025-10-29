@@ -4,9 +4,10 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Jobs\EmailIngestJob;
-use App\Models\TicketEmail;
+use App\Models\TicketNotification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 
 class MailgunInboundController extends Controller
@@ -14,145 +15,84 @@ class MailgunInboundController extends Controller
     /**
      * Webhook para receber e-mails do Mailgun Routes.
      * 
-     * Documentação: https://documentation.mailgun.com/en/latest/api-routes.html
-     * 
-     * @param Request $request
-     * @return JsonResponse
+     * Suporta 3 métodos de identificação (em ordem de prioridade):
+     * 1. Reply-To com HMAC (reply+tkt.{slug}.{id}.{hmac}@domain)
+     * 2. Threading headers (In-Reply-To/References)
+     * 3. Subject com [TKT-ID]
      */
     public function handleInbound(Request $request): JsonResponse
     {
         try {
-            // Validar assinatura do Mailgun (HMAC SHA256)
-            if (!$this->verifyWebhookSignature($request)) {
-                Log::warning('Mailgun webhook com assinatura inválida', [
-                    'ip' => $request->ip(),
-                ]);
-                return response()->json(['error' => 'Unauthorized'], 401);
-            }
-
-            // Extrair dados do e-mail
-            $sender = $request->input('sender'); // From
-            $recipient = $request->input('recipient'); // To
+            $recipient = $request->input('recipient');
             $subject = $request->input('subject', 'Sem assunto');
-            $bodyPlain = $request->input('body-plain', '');
-            $bodyHtml = $request->input('body-html', '');
-            $strippedText = $request->input('stripped-text', ''); // Texto sem assinaturas
-            $strippedSignature = $request->input('stripped-signature', '');
-            $messageId = $request->input('Message-Id');
-            $inReplyTo = $request->input('In-Reply-To');
-            $references = $request->input('References');
-            $timestamp = $request->input('timestamp');
-            $token = $request->input('token');
-            $signature = $request->input('signature');
-
-            // Headers customizados
-            $messageHeaders = $request->input('message-headers');
 
             Log::info('Mailgun inbound recebido', [
-                'from' => $sender,
-                'to' => $recipient,
+                'recipient' => $recipient,
+                'from' => $request->input('sender'),
                 'subject' => $subject,
-                'message_id' => $messageId,
             ]);
 
-            // Criar registro de TicketEmail ANTES de despachar o job
-            // O unique constraint em message_id protege contra duplicatas (race condition)
-            try {
-                $ticketEmail = TicketEmail::create([
-                    'message_id' => $messageId,
-                    'from' => $sender,
-                    'to' => $recipient,
-                    'subject' => $subject,
-                    'status' => 'queued',
-                    'received_at' => now(),
-                ]);
-
-                Log::info('Registro de e-mail criado', [
-                    'ticket_email_id' => $ticketEmail->id,
-                    'message_id' => $messageId,
-                ]);
-            } catch (\Illuminate\Database\QueryException $e) {
-                // Se já existe (violação do unique constraint), retornar sucesso
-                if ($e->getCode() === '23000' || str_contains($e->getMessage(), 'Duplicate entry')) {
-                    Log::info('E-mail já processado (idempotência via unique constraint)', [
-                        'message_id' => $messageId,
+            // 1. Tentativa: Reply-To com HMAC
+            if (preg_match('/^reply\+tkt\.([a-z0-9-]+)\.(\d+)\.([a-f0-9]+)@/i', $recipient, $matches)) {
+                [$all, $slug, $ticketId, $hmac] = $matches;
+                
+                // Validar HMAC
+                $secret = config('services.reply.hmac_secret');
+                $calculatedHmac = substr(hash_hmac('sha256', "{$slug}|{$ticketId}", $secret), 10, strlen($hmac));
+                
+                if (hash_equals($calculatedHmac, $hmac)) {
+                    Log::info('Ticket identificado por Reply-To HMAC', [
+                        'ticket_id' => $ticketId,
+                        'tenant_slug' => $slug,
                     ]);
-                    return response()->json(['ok' => true, 'status' => 'already_processed'], 200);
+                    
+                    return $this->queueAppend((int) $ticketId, $slug, $request);
                 }
                 
-                // Outro erro, propagar
-                throw $e;
+                Log::warning('HMAC inválido no Reply-To', [
+                    'recipient' => $recipient,
+                    'expected_prefix' => substr($calculatedHmac, 0, 4),
+                ]);
             }
 
-            // Processar anexos
-            $attachments = [];
-            $attachmentCount = (int) $request->input('attachment-count', 0);
+            // 2. Tentativa: Threading headers fallback
+            $inReplyTo = $request->input('In-Reply-To') ?: $request->input('in-reply-to', '');
+            $references = $request->input('References') ?: $request->input('references', '');
             
-            for ($i = 1; $i <= $attachmentCount; $i++) {
-                if ($request->hasFile("attachment-{$i}")) {
-                    $file = $request->file("attachment-{$i}");
-                    $attachments[] = [
-                        'name' => $file->getClientOriginalName(),
-                        'type' => $file->getMimeType(),
-                        'size' => $file->getSize(),
-                        'content' => base64_encode(file_get_contents($file->getRealPath())),
-                    ];
-                }
+            if ($notification = TicketNotification::matchByThreading($inReplyTo, $references)) {
+                Log::info('Ticket identificado por threading headers', [
+                    'ticket_id' => $notification->ticket_id,
+                    'tenant_slug' => $notification->tenant_slug,
+                ]);
+                
+                return $this->queueAppend($notification->ticket_id, $notification->tenant_slug, $request);
             }
 
-            // Montar payload no formato que o EmailInboundService espera
-            $payload = [
-                'mail' => [
-                    'source' => $sender,
-                    'destination' => [$recipient],
-                    'messageId' => $messageId,
-                    'timestamp' => $timestamp,
-                    'commonHeaders' => [
-                        'from' => [$sender],
-                        'to' => [$recipient],
-                        'subject' => $subject,
-                        'messageId' => $messageId,
-                        'inReplyTo' => $inReplyTo,
-                        'references' => $references,
-                    ],
-                ],
-                'content' => [
-                    'plain' => $bodyPlain,
-                    'html' => $bodyHtml,
-                    'stripped_text' => $strippedText,
-                    'stripped_signature' => $strippedSignature,
-                ],
-                'attachments' => $attachments,
-                'headers' => $this->parseMessageHeaders($messageHeaders),
-            ];
+            // 3. Tentativa: Subject fallback [TKT-ID]
+            if (preg_match('/\[(?:TKT|TICKET)-(\d+)\]/i', $subject, $subjectMatches)) {
+                $ticketId = (int) $subjectMatches[1];
+                
+                Log::info('Ticket identificado por subject', [
+                    'ticket_id' => $ticketId,
+                    'subject' => $subject,
+                ]);
+                
+                return $this->queueAppend($ticketId, null, $request);
+            }
 
-            // Despachar job assíncrono
-            EmailIngestJob::dispatch(
-                messageId: $messageId,
-                from: $sender,
-                subject: $subject,
-                to: $recipient,
-                s3ObjectKey: null, // Mailgun não usa S3
-                rawPayload: $payload
-            );
-
-            Log::info('E-mail Mailgun enfileirado para processamento', [
-                'message_id' => $messageId,
-                'from' => $sender,
-                'to' => $recipient,
+            // Nenhum método funcionou
+            Log::warning('Inbound sem mapeamento de ticket', [
+                'recipient' => $recipient,
+                'subject' => $subject,
+                'from' => $request->input('sender'),
             ]);
-
-            return response()->json([
-                'ok' => true,
-                'message' => 'Email queued for processing',
-                'message_id' => $messageId,
-            ], 200);
+            
+            return response()->json(['status' => 'ignored', 'reason' => 'no_ticket_match'], 200);
 
         } catch (\Throwable $e) {
             Log::error('Erro ao processar webhook Mailgun', [
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
-                'ip' => $request->ip(),
             ]);
 
             return response()->json([
@@ -163,94 +103,58 @@ class MailgunInboundController extends Controller
     }
 
     /**
-     * Verifica a assinatura do webhook do Mailgun.
-     * 
-     * @param Request $request
-     * @return bool
+     * Queue reply/comment append to ticket.
+     * Implements idempotency via Message-ID cache.
      */
-    private function verifyWebhookSignature(Request $request): bool
+    protected function queueAppend(int $ticketId, ?string $tenantSlug, Request $request): JsonResponse
     {
-        $signingKey = config('services.mailgun.webhook_signing_key');
+        // Obter Message-ID (idempotência)
+        $messageId = $request->input('Message-Id') ?: $request->input('message-id', '');
         
-        // Se não houver signing key configurada, pular validação (dev)
-        if (empty($signingKey)) {
-            Log::warning('Mailgun webhook signing key não configurada - pulando validação');
-            return true;
+        if (empty($messageId)) {
+            // Gerar ID baseado em hash se não houver Message-ID
+            $messageId = 'no-msgid:' . sha1(
+                $request->input('sender', '') . '|' .
+                $request->input('timestamp', '') . '|' .
+                substr($request->input('body-plain', ''), 0, 200)
+            );
         }
 
-        $timestamp = $request->input('timestamp');
-        $token = $request->input('token');
-        $signature = $request->input('signature');
+        $messageId = trim($messageId, '<>');
+        $cacheKey = 'mg:msg:' . sha1($messageId);
 
-        if (!$timestamp || !$token || !$signature) {
-            Log::warning('Mailgun webhook sem campos de assinatura', [
-                'has_timestamp' => !empty($timestamp),
-                'has_token' => !empty($token),
-                'has_signature' => !empty($signature),
+        // Idempotência: verificar se já processamos este Message-ID
+        if (!Cache::add($cacheKey, true, now()->addHours(48))) {
+            Log::info('E-mail duplicado (idempotência)', [
+                'message_id' => $messageId,
+                'ticket_id' => $ticketId,
             ]);
-            return false;
-        }
-
-        // Verificar se o timestamp não é muito antigo (prevenir replay attacks)
-        $now = time();
-        if (abs($now - $timestamp) > 300) { // 5 minutos
-            Log::warning('Mailgun webhook com timestamp expirado', [
-                'timestamp' => $timestamp,
-                'now' => $now,
-                'diff' => abs($now - $timestamp),
-            ]);
-            return false;
-        }
-
-        // Calcular HMAC SHA256
-        $expectedSignature = hash_hmac('sha256', $timestamp . $token, $signingKey);
-
-        $isValid = hash_equals($expectedSignature, $signature);
-
-        if (!$isValid) {
-            Log::warning('Mailgun webhook com assinatura inválida', [
-                'expected' => $expectedSignature,
-                'got' => $signature,
-            ]);
-        }
-
-        return $isValid;
-    }
-
-    /**
-     * Parseia headers do Mailgun (formato JSON string).
-     * 
-     * @param string|null $messageHeaders
-     * @return array
-     */
-    private function parseMessageHeaders(?string $messageHeaders): array
-    {
-        if (empty($messageHeaders)) {
-            return [];
-        }
-
-        try {
-            $headers = json_decode($messageHeaders, true);
             
-            if (!is_array($headers)) {
-                return [];
-            }
-
-            // Converter para formato key => value
-            $parsed = [];
-            foreach ($headers as $header) {
-                if (is_array($header) && count($header) >= 2) {
-                    $parsed[$header[0]] = $header[1];
-                }
-            }
-
-            return $parsed;
-        } catch (\Throwable $e) {
-            Log::warning('Erro ao parsear message-headers do Mailgun', [
-                'error' => $e->getMessage(),
-            ]);
-            return [];
+            return response()->json(['status' => 'duplicate', 'message_id' => $messageId], 200);
         }
+
+        // Despachar job assíncrono
+        EmailIngestJob::dispatch(
+            messageId: $messageId,
+            from: $request->input('sender', ''),
+            subject: $request->input('subject', ''),
+            to: $request->input('recipient'),
+            s3ObjectKey: null,
+            rawPayload: $request->all(),
+            ticketId: $ticketId,
+            tenantSlug: $tenantSlug
+        );
+
+        Log::info('Resposta de e-mail enfileirada para processamento', [
+            'ticket_id' => $ticketId,
+            'tenant_slug' => $tenantSlug,
+            'message_id' => $messageId,
+        ]);
+
+        return response()->json([
+            'ok' => true,
+            'ticket_id' => $ticketId,
+            'message_id' => $messageId,
+        ], 200);
     }
 }
-

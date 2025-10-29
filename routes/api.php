@@ -15,9 +15,10 @@ use Illuminate\Support\Facades\Route;
 |
 */
 
-// Webhook público do Mailgun Routes (sem auth/tenant/throttle)
+// Webhook público do Mailgun Routes (com validação de assinatura)
 Route::post('/webhooks/mailgun-inbound', [MailgunInboundController::class, 'handleInbound'])
     ->name('webhooks.mailgun.inbound')
+    ->middleware(\App\Http\Middleware\VerifyMailgunSignature::class)
     ->withoutMiddleware([
         \Illuminate\Auth\Middleware\Authenticate::class,
         \App\Http\Middleware\IdentifyTenant::class,

@@ -35,6 +35,8 @@ class EmailIngestJob implements ShouldQueue
         public ?string $to = null,
         public ?string $s3ObjectKey = null,
         public ?array $rawPayload = null,
+        public ?int $ticketId = null,         // Ticket ID já identificado (respostas)
+        public ?string $tenantSlug = null,   // Slug do tenant (respostas)
     ) {
     }
 
@@ -98,9 +100,21 @@ class EmailIngestJob implements ShouldQueue
                 ]);
             }
 
-            // 4. Processar email usando o serviço existente
+            // 4. Processar email
             if ($this->rawPayload) {
-                $result = $emailInboundService->processInboundEmail($this->rawPayload);
+                // Se ticketId foi fornecido, é uma resposta direta (via Reply-To HMAC)
+                if ($this->ticketId) {
+                    $result = $emailInboundService->processDirectReply(
+                        $this->ticketId,
+                        $this->tenantSlug,
+                        $this->from,
+                        $this->rawPayload,
+                        $this->messageId
+                    );
+                } else {
+                    // Fluxo normal: criar novo ticket ou identificar por headers
+                    $result = $emailInboundService->processInboundEmail($this->rawPayload);
+                }
 
                 // 5. Atualizar registro como processado
                 $ticketEmail->markAsProcessed($result['ticket_id'] ?? null);

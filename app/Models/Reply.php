@@ -12,7 +12,7 @@ class Reply extends Model
      *
      * @var array
      */
-    protected $fillable = ["user_id", "ticket_id", "content"];
+    protected $fillable = ["user_id", "ticket_id", "content", "is_internal", "external_message_id"];
 
     /**
      * Get the ticket that owns the reply.

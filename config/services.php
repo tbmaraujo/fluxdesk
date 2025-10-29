@@ -46,4 +46,9 @@ return [
         ],
     ],
 
+    'reply' => [
+        'hmac_secret' => env('REPLY_HMAC_SECRET'),
+        'domain' => env('MAIL_REPLY_DOMAIN', 'tickets.fluxdesk.com.br'),
+    ],
+
 ];
