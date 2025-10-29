@@ -102,3 +102,5 @@ Homestead.yaml
 # Cache de ferramentas JS
 # =========================
 .eslintcache
+backup/*.sql
+backup/*.sql.gz
