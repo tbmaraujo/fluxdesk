@@ -41,32 +41,51 @@ if [ ! -f "artisan" ]; then
     exit 1
 fi
 
-# Verificar se Git está limpo
-print_info "Verificando status do Git..."
-if [ -n "$(git status --porcelain)" ]; then
-    print_warning "Há alterações não commitadas. Deseja continuar? (y/n)"
-    read -r response
-    if [[ ! "$response" =~ ^[Yy]$ ]]; then
-        print_info "Deploy cancelado."
-        exit 0
+# Detectar se é deploy gerenciado (Capistrano/Deployer/Envoyer)
+MANAGED_DEPLOY=false
+if [[ "$PWD" == *"/releases/"* ]] || [[ "$PWD" == *"/current"* ]] || [ -L "." ]; then
+    MANAGED_DEPLOY=true
+    print_warning "Deploy gerenciado detectado (Capistrano/Deployer)"
+    print_info "Pulando comandos Git (já gerenciado pela ferramenta de deploy)"
+fi
+
+# Passo 1: Atualizar código (apenas se não for deploy gerenciado)
+if [ "$MANAGED_DEPLOY" = false ]; then
+    # Verificar se Git está limpo
+    print_info "Verificando status do Git..."
+    
+    # Corrigir problema de ownership se necessário
+    if git status 2>&1 | grep -q "dubious ownership"; then
+        print_warning "Corrigindo permissões do Git..."
+        git config --global --add safe.directory "$PWD"
     fi
-fi
+    
+    if [ -n "$(git status --porcelain 2>/dev/null)" ]; then
+        print_warning "Há alterações não commitadas. Deseja continuar? (y/n)"
+        read -r response
+        if [[ ! "$response" =~ ^[Yy]$ ]]; then
+            print_info "Deploy cancelado."
+            exit 0
+        fi
+    fi
 
-# Passo 1: Atualizar código
-print_info "Atualizando código do repositório..."
-git pull origin main
-if [ $? -eq 0 ]; then
-    print_success "Código atualizado"
-else
-    print_error "Falha ao atualizar código"
-    exit 1
-fi
+    print_info "Atualizando código do repositório..."
+    git pull origin main
+    if [ $? -eq 0 ]; then
+        print_success "Código atualizado"
+    else
+        print_error "Falha ao atualizar código"
+        exit 1
+    fi
 
-# Verificar se o commit da migração existe
-if git log --oneline | grep -q "migração completa do Amazon SES para Mailgun"; then
-    print_success "Commit da migração encontrado"
+    # Verificar se o commit da migração existe
+    if git log --oneline 2>/dev/null | grep -q "migração completa do Amazon SES para Mailgun"; then
+        print_success "Commit da migração encontrado"
+    else
+        print_warning "Commit da migração não encontrado. Verifique se está no branch correto."
+    fi
 else
-    print_warning "Commit da migração não encontrado. Verifique se está no branch correto."
+    print_success "Deploy gerenciado - código já foi atualizado pela ferramenta"
 fi
 
 # Passo 2: Instalar dependências
