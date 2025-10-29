@@ -65,15 +65,20 @@ MAILGUN_WEBHOOK_SIGNING_KEY=sua-signing-key-aqui
 
 ### Recebimento de E-mails (Inbound)
 
-1. Cliente envia e-mail para: `{TENANT_ID}@tickets.fluxdesk.com.br`
+1. Cliente envia e-mail para: `{TENANT_SLUG}@tickets.fluxdesk.com.br`
 2. Mailgun recebe e encaminha para: `https://app.fluxdesk.com.br/api/webhooks/mailgun-inbound`
-3. Sistema identifica o tenant pelo ID no e-mail
+3. Sistema identifica o tenant pelo SLUG no e-mail
 4. Cria ticket ou adiciona resposta
 
-**Formato do e-mail:**
-- `1@tickets.fluxdesk.com.br` → Tenant ID 1
-- `2@tickets.fluxdesk.com.br` → Tenant ID 2
-- `1234@tickets.fluxdesk.com.br` → Tenant ID 1234
+**Formato do e-mail (prioridade):**
+1. **SLUG** (recomendado): `sincro8@tickets.fluxdesk.com.br` → Tenant com slug "sincro8"
+2. **CNPJ**: `42262851012132@tickets.fluxdesk.com.br` → Tenant com CNPJ "42262851012132"
+3. **ID numérico** (fallback): `1@tickets.fluxdesk.com.br` → Tenant ID 1
+
+**Benefícios do SLUG:**
+- ✅ Mais profissional e legível
+- ✅ Fácil de lembrar
+- ✅ Mantém consistência da marca do cliente
 
 ---
 
@@ -170,9 +175,16 @@ echo "E-mail enviado! Verifique sua caixa de entrada.\n";
 
 ### Teste 2: E-mail Real
 
+Primeiro, descubra o SLUG do seu tenant:
+```bash
+php artisan tinker
+\App\Models\Tenant::select('id', 'name', 'slug')->get();
+# Ex: {id: 1, name: "Sincro8", slug: "sincro8"}
+```
+
 Envie um e-mail do seu Gmail/Outlook:
 ```
-Para: 1@tickets.fluxdesk.com.br
+Para: sincro8@tickets.fluxdesk.com.br  (usando o slug do tenant)
 Assunto: Meu primeiro ticket via e-mail
 Corpo: Teste de criação de ticket
 ```
