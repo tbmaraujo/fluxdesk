@@ -106,7 +106,14 @@ class MailgunInboundController extends Controller
             ];
 
             // Despachar job assíncrono
-            EmailIngestJob::dispatch($payload, $messageId);
+            EmailIngestJob::dispatch(
+                messageId: $messageId,
+                from: $sender,
+                subject: $subject,
+                to: $recipient,
+                s3ObjectKey: null, // Mailgun não usa S3
+                rawPayload: $payload
+            );
 
             Log::info('E-mail Mailgun enfileirado para processamento', [
                 'message_id' => $messageId,
