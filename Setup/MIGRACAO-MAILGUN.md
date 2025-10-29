@@ -114,7 +114,12 @@ MAILGUN_ENDPOINT=api.mailgun.net
 # MAILGUN_ENDPOINT=api.eu.mailgun.net
 
 # Webhook Signing Key
-MAILGUN_WEBHOOK_SIGNING_KEY=whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# IMPORTANTE: Copie exatamente como aparece no painel do Mailgun
+# Pode ou NÃO ter prefixo (depende de quando foi gerada)
+# Exemplos válidos:
+#   MAILGUN_WEBHOOK_SIGNING_KEY=4f574de5a76881e27f6d9b8c91e8347c
+#   MAILGUN_WEBHOOK_SIGNING_KEY=key-1234567890abcdef1234567890abcdef
+MAILGUN_WEBHOOK_SIGNING_KEY=sua-chave-aqui
 
 # Domínio para recebimento de tickets
 MAIL_TICKET_DOMAIN=tickets.fluxdesk.com.br

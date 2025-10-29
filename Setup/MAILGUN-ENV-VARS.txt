@@ -19,7 +19,9 @@ MAILGUN_ENDPOINT=api.mailgun.net
 
 # Webhook Signing Key do Mailgun
 # Obtenha em: https://app.mailgun.com/app/account/security/api_keys
-MAILGUN_WEBHOOK_SIGNING_KEY=whsec_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# IMPORTANTE: Copie exatamente como aparece no painel (pode não ter prefixo)
+# Exemplo: MAILGUN_WEBHOOK_SIGNING_KEY=4f574de5a76881e27f6d9b8c91e8347c
+MAILGUN_WEBHOOK_SIGNING_KEY=
 
 # Domínio para recebimento de tickets por e-mail
 # Ex: tenant_id@tickets.fluxdesk.com.br
