@@ -80,6 +80,7 @@ class EmailInboundService
 
             $reply = Reply::create([
                 'ticket_id' => $ticket->id,
+                'tenant_id' => $ticket->tenant_id,
                 'user_id' => null, // Resposta externa (cliente)
                 'content' => $content,
                 'is_internal' => false,
@@ -745,6 +746,7 @@ class EmailInboundService
             // Criar resposta
             $reply = Reply::create([
                 'ticket_id' => $ticket->id,
+                'tenant_id' => $ticket->tenant_id,
                 'user_id' => null, // E-mail não tem usuário logado
                 'content' => $parsedEmail['body_html'] ?? $parsedEmail['body_text'] ?? '',
                 'is_internal' => false, // Resposta de cliente é sempre pública

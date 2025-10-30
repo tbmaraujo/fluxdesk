@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Reply extends Model
 {
+    use \App\Models\Traits\BelongsToTenant;
+
     /**
      * The attributes that are mass assignable.
      *
@@ -15,6 +17,7 @@ class Reply extends Model
     protected $fillable = [
         "user_id",
         "ticket_id",
+        "tenant_id",
         "content",
         "is_internal",
         "external_message_id",
