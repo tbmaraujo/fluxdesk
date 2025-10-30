@@ -92,15 +92,19 @@ interface Attachment {
 interface Reply {
     id: number;
     ticket_id: number;
-    user_id: number;
+    user_id: number | null;
     content: string;
     created_at: string;
     updated_at: string;
+    is_internal?: boolean;
+    from_email?: string | null;
+    from_name?: string | null;
+    via?: 'internal' | 'email' | 'portal';
     user: {
         id: number;
         name: string;
         email: string;
-    };
+    } | null;
     attachments?: Attachment[];
 }
 
@@ -1950,13 +1954,23 @@ function HistoryPanel({ ticket }: { ticket: Ticket }) {
             timestamp: ticket.created_at,
             description: 'Criou o chamado',
         },
-        ...ticket.replies.map(reply => ({
-            id: `reply-${reply.id}`,
-            type: 'reply',
-            user: reply.user.name,
-            timestamp: reply.created_at,
-            description: 'Adicionou uma resposta',
-        })),
+        ...ticket.replies.map(reply => {
+            const isEmailReply = reply.via === 'email' || (!reply.user_id && reply.from_email);
+            const userName = isEmailReply 
+                ? (reply.from_name || reply.from_email || 'Cliente')
+                : (reply.user?.name || 'Usuário Desconhecido');
+            const description = isEmailReply 
+                ? 'Respondeu via e-mail'
+                : 'Adicionou uma resposta';
+            
+            return {
+                id: `reply-${reply.id}`,
+                type: 'reply',
+                user: userName,
+                timestamp: reply.created_at,
+                description: description,
+            };
+        }),
         ...ticket.appointments.map(appointment => ({
             id: `appointment-${appointment.id}`,
             type: 'appointment',
@@ -2126,26 +2140,39 @@ function CommunicationPanel({ ticket, auth }: { ticket: Ticket; auth: any }) {
                 <CardContent className="p-6 md:p-8 pt-6">
                     {ticket.replies && ticket.replies.length > 0 ? (
                         <div className="space-y-4">
-                            {ticket.replies.map((reply) => (
+                            {ticket.replies.map((reply) => {
+                                // Determinar nome e origem da resposta
+                                const isEmailReply = reply.via === 'email' || (!reply.user_id && reply.from_email);
+                                const displayName = isEmailReply 
+                                    ? (reply.from_name || reply.from_email || 'Cliente')
+                                    : (reply.user?.name || 'Usuário Desconhecido');
+                                const avatarBgColor = isEmailReply ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-700';
+                                
+                                return (
                                 <div
                                     key={reply.id}
                                     className="p-4 bg-gray-50 rounded-lg border border-gray-200"
                                 >
                                     <div className="flex items-start space-x-3">
                                         <Avatar className="h-10 w-10">
-                                            <AvatarFallback className="bg-gray-200 text-gray-700 text-sm font-medium">
-                                                {getInitials(reply.user.name)}
+                                            <AvatarFallback className={`${avatarBgColor} text-sm font-medium`}>
+                                                {getInitials(displayName)}
                                             </AvatarFallback>
                                         </Avatar>
                                         <div className="flex-1">
                                             <div className="flex items-center space-x-2 mb-3">
                                                 <span className="font-semibold text-gray-900">
-                                                    {reply.user.name}
+                                                    {displayName}
                                                 </span>
-                                                {reply.user_id === ticket.user_id && (
+                                                {isEmailReply && (
+                                                    <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                                                        📧 via E-mail
+                                                    </Badge>
+                                                )}
+                                                {!isEmailReply && reply.user_id === ticket.user_id && (
                                                     <Badge variant="purple">Autor</Badge>
                                                 )}
-                                                {reply.user_id === ticket.assignee_id && (
+                                                {!isEmailReply && reply.user_id === ticket.assignee_id && (
                                                     <Badge variant="info">Técnico</Badge>
                                                 )}
                                                 <span className="text-sm text-gray-500">
@@ -2191,7 +2218,8 @@ function CommunicationPanel({ ticket, auth }: { ticket: Ticket; auth: any }) {
                                         </div>
                                     </div>
                                 </div>
-                            ))}
+                                );
+                            })}
                         </div>
                     ) : (
                         <div className="text-center py-12 text-gray-500">

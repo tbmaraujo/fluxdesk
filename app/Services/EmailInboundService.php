@@ -84,6 +84,9 @@ class EmailInboundService
                 'content' => $content,
                 'is_internal' => false,
                 'external_message_id' => $messageId, // Para idempotência
+                'from_email' => $fromEmail,
+                'from_name' => $this->extractNameFromEmail($fromEmail, $payload),
+                'via' => 'email',
             ]);
 
             // Processar anexos (se houver)
@@ -99,11 +102,15 @@ class EmailInboundService
 
             DB::commit();
 
-            Log::info('Resposta direta processada via Reply-To HMAC', [
+            Log::info('✅ Resposta direta processada via Reply-To HMAC', [
                 'ticket_id' => $ticket->id,
                 'reply_id' => $reply->id,
                 'from' => $fromEmail,
+                'from_name' => $reply->from_name,
                 'message_id' => $messageId,
+                'content_length' => strlen($content),
+                'has_attachments' => $attachmentCount > 0,
+                'timestamp' => now()->toIso8601String(),
             ]);
 
             // NÃO enviar notificações para evitar loops
@@ -201,11 +208,12 @@ class EmailInboundService
             $subject = $payload['subject'] ?? 'Sem assunto';
             $messageId = trim($payload['Message-Id'] ?? $payload['message-id'] ?? '', '<>');
 
-            Log::info('Processando e-mail recebido do Mailgun', [
+            Log::info('📧 Processando e-mail recebido do Mailgun', [
                 'from' => $from,
                 'to' => $to,
                 'subject' => $subject,
                 'message_id' => $messageId,
+                'timestamp' => now()->toIso8601String(),
             ]);
 
             // Extrair tenant_id do destinatário
@@ -249,11 +257,30 @@ class EmailInboundService
             $ticketId = $this->extractTicketId($subject);
 
             if ($ticketId) {
-                // É uma resposta a ticket existente
-                return $this->processReply($tenant, $ticketId, $from, $parsedEmail);
+                // Verificar se o ticket existe
+                $ticket = Ticket::where('id', $ticketId)
+                    ->where('tenant_id', $tenant->id)
+                    ->first();
+                
+                if ($ticket) {
+                    // É uma resposta a ticket existente
+                    return $this->processReply($tenant, $ticketId, $from, $parsedEmail);
+                } else {
+                    // Ticket não existe, criar como pré-ticket
+                    Log::warning('E-mail referenciando ticket inexistente, criando pré-ticket', [
+                        'ticket_id_mencionado' => $ticketId,
+                        'from' => $from,
+                        'subject' => $subject,
+                    ]);
+                    return $this->processPreTicket($tenant, $from, $subject, $parsedEmail, $to, "Ticket #$ticketId mencionado não encontrado");
+                }
             } else {
-                // É um novo ticket
-                return $this->processNewTicket($tenant, $from, $subject, $parsedEmail, $to);
+                // Não tem ticket_id no assunto - criar pré-ticket para triagem
+                Log::info('E-mail sem ticket ID no assunto, criando pré-ticket para triagem', [
+                    'from' => $from,
+                    'subject' => $subject,
+                ]);
+                return $this->processPreTicket($tenant, $from, $subject, $parsedEmail, $to);
             }
         } catch (\Exception $e) {
             Log::error('Erro ao processar e-mail recebido', [
@@ -290,6 +317,32 @@ class EmailInboundService
         return $attachments;
     }
 
+
+    /**
+     * Extrair nome do remetente do e-mail ou payload.
+     *
+     * @param string $email
+     * @param array $payload
+     * @return string
+     */
+    private function extractNameFromEmail(string $email, array $payload): string
+    {
+        // Tentar extrair do payload primeiro
+        if (isset($payload['From']) && preg_match('/^(.+?)\s*<.+?>$/', $payload['From'], $matches)) {
+            return trim($matches[1], '"');
+        }
+        
+        if (isset($payload['from_name'])) {
+            return $payload['from_name'];
+        }
+        
+        // Fallback: usar a parte antes do @ do e-mail
+        if (preg_match('/^([^@]+)@/', $email, $matches)) {
+            return ucfirst(str_replace(['.', '_', '-'], ' ', $matches[1]));
+        }
+        
+        return $email;
+    }
 
     /**
      * Extrair tenant_id do endereço de e-mail (ex: 1234@tickets.fluxdesk.com.br).
@@ -500,10 +553,16 @@ class EmailInboundService
             // Enviar notificação de ticket criado
             $this->sendTicketCreatedNotification($ticket);
 
-            Log::info('Ticket criado a partir de e-mail', [
+            Log::info('✅ Ticket criado a partir de e-mail', [
                 'ticket_id' => $ticket->id,
                 'tenant_id' => $tenant->id,
+                'client_id' => $clientId,
+                'contact_id' => $contact->id,
                 'contact_email' => $from,
+                'service_id' => $serviceId,
+                'priority_id' => $priorityId,
+                'has_attachments' => !empty($parsedEmail['attachments']),
+                'timestamp' => now()->toIso8601String(),
             ]);
 
             return [
@@ -513,6 +572,146 @@ class EmailInboundService
             ];
         } catch (\Exception $e) {
             DB::rollBack();
+            throw $e;
+        }
+    }
+
+    /**
+     * Processar e-mail como pré-ticket (aguardando triagem manual).
+     *
+     * @param Tenant $tenant
+     * @param string $from
+     * @param string $subject
+     * @param array $parsedEmail
+     * @param string $toEmail
+     * @param string|null $reason
+     * @return array
+     */
+    private function processPreTicket(Tenant $tenant, string $from, string $subject, array $parsedEmail, string $toEmail, ?string $reason = null): array
+    {
+        DB::beginTransaction();
+
+        try {
+            // Buscar configuração do e-mail de recebimento
+            $tenantEmail = TenantEmailAddress::where('tenant_id', $tenant->id)
+                ->where('email', strtolower($toEmail))
+                ->where('active', true)
+                ->first();
+
+            // Encontrar ou criar contato
+            $contact = $this->findOrCreateContact($tenant->id, $from, $parsedEmail['from_name'] ?? null);
+
+            // Determinar cliente
+            $clientId = null;
+            if ($tenantEmail && $tenantEmail->client_filter) {
+                $clientId = $tenantEmail->client_filter;
+            } else {
+                // Fallback: primeiro cliente do tenant
+                $client = Client::where('tenant_id', $tenant->id)->first();
+                if (!$client) {
+                    throw new \Exception('Nenhum cliente encontrado para o tenant: ' . $tenant->id);
+                }
+                $clientId = $client->id;
+            }
+
+            // Determinar serviço e prioridade (usar padrões ou do e-mail configurado)
+            if ($tenantEmail && $tenantEmail->service_id && $tenantEmail->priority_id) {
+                $serviceId = $tenantEmail->service_id;
+                $priorityId = $tenantEmail->priority_id;
+            } else {
+                // Fallback: primeiro serviço do tenant
+                $service = Service::where('tenant_id', $tenant->id)->first();
+                
+                if (!$service) {
+                    throw new \Exception('Nenhum serviço encontrado para o tenant: ' . $tenant->id);
+                }
+                
+                $serviceId = $service->id;
+                $priority = \App\Models\Priority::where('service_id', $serviceId)->first();
+                $priorityId = $priority ? $priority->id : null;
+            }
+
+            // Buscar ticket_type_id do serviço
+            $service = Service::find($serviceId);
+            
+            // Obter usuário padrão do tenant
+            $defaultUser = User::where('tenant_id', $tenant->id)
+                ->orderBy('id')
+                ->first();
+
+            if (!$defaultUser) {
+                throw new \Exception('Nenhum usuário encontrado para o tenant: ' . $tenant->id);
+            }
+
+            // Adicionar informação sobre o motivo no título se houver
+            $title = $reason 
+                ? "🔍 [Triagem] " . $subject . " - " . $reason
+                : "🔍 [Triagem] " . $subject;
+
+            // Adicionar contexto na descrição
+            $description = $parsedEmail['body_html'] ?? $parsedEmail['body_text'] ?? '';
+            $description = "<div class='bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-4'>"
+                . "<p class='font-semibold text-yellow-800'>⚠️ Pré-Ticket - Aguardando Triagem</p>"
+                . "<p class='text-sm text-yellow-700 mt-1'>Este ticket foi criado automaticamente a partir de um e-mail recebido em <strong>$toEmail</strong>.</p>"
+                . "<p class='text-sm text-yellow-700'>Remetente: <strong>$from</strong></p>"
+                . ($reason ? "<p class='text-sm text-yellow-700'>Motivo: <strong>$reason</strong></p>" : "")
+                . "<p class='text-sm text-yellow-700 mt-2'>Por favor, revise e classifique este ticket antes de iniciar o atendimento.</p>"
+                . "</div>"
+                . $description;
+
+            // Criar pré-ticket
+            $ticket = Ticket::create([
+                'tenant_id' => $tenant->id,
+                'client_id' => $clientId,
+                'contact_id' => $contact->id,
+                'user_id' => $defaultUser->id,
+                'service_id' => $serviceId,
+                'priority_id' => $priorityId,
+                'ticket_type_id' => $service->ticket_type_id,
+                'title' => $title,
+                'description' => $description,
+                'status' => 'PRE_TICKET', // Status especial para pré-tickets
+                'stage' => 'PENDENTE',
+            ]);
+
+            // Processar anexos
+            if (!empty($parsedEmail['attachments'])) {
+                $this->processAttachments($ticket, null, $parsedEmail['attachments']);
+            }
+
+            DB::commit();
+
+            // NÃO enviar notificação para pré-tickets (evitar spam)
+            // Apenas logar para auditoria
+
+            Log::info('🔍 Pré-ticket criado a partir de e-mail (aguardando triagem)', [
+                'ticket_id' => $ticket->id,
+                'tenant_id' => $tenant->id,
+                'client_id' => $clientId,
+                'contact_id' => $contact->id,
+                'contact_email' => $from,
+                'contact_name' => $contact->name,
+                'service_id' => $serviceId,
+                'priority_id' => $priorityId,
+                'reason' => $reason,
+                'has_attachments' => !empty($parsedEmail['attachments']),
+                'timestamp' => now()->toIso8601String(),
+            ]);
+
+            return [
+                'action' => 'pre_ticket_created',
+                'ticket_id' => $ticket->id,
+                'tenant_id' => $tenant->id,
+            ];
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Log::error('Erro ao criar pré-ticket', [
+                'from' => $from,
+                'subject' => $subject,
+                'error' => $e->getMessage(),
+            ]);
+            
             throw $e;
         }
     }
@@ -549,6 +748,9 @@ class EmailInboundService
                 'user_id' => null, // E-mail não tem usuário logado
                 'content' => $parsedEmail['body_html'] ?? $parsedEmail['body_text'] ?? '',
                 'is_internal' => false, // Resposta de cliente é sempre pública
+                'from_email' => $from,
+                'from_name' => $contact->name ?? $this->extractNameFromEmail($from, $parsedEmail),
+                'via' => 'email',
             ]);
 
             // Processar anexos
@@ -566,10 +768,17 @@ class EmailInboundService
             // Enviar notificação de nova resposta
             $this->sendReplyNotification($ticket, $reply);
 
-            Log::info('Resposta adicionada a ticket via e-mail', [
+            Log::info('✅ Resposta adicionada a ticket via e-mail', [
                 'ticket_id' => $ticket->id,
                 'reply_id' => $reply->id,
+                'contact_id' => $contact->id,
                 'contact_email' => $from,
+                'contact_name' => $contact->name,
+                'content_length' => strlen($reply->content),
+                'has_attachments' => !empty($parsedEmail['attachments']),
+                'old_status' => $ticket->getOriginal('status'),
+                'new_status' => $ticket->status,
+                'timestamp' => now()->toIso8601String(),
             ]);
 
             return [
