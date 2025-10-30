@@ -276,12 +276,37 @@ class EmailInboundService
                     return $this->processPreTicket($tenant, $from, $subject, $parsedEmail, $to, "Ticket #$ticketId mencionado não encontrado");
                 }
             } else {
-                // Não tem ticket_id no assunto - criar pré-ticket para triagem
-                Log::info('E-mail sem ticket ID no assunto, criando pré-ticket para triagem', [
-                    'from' => $from,
-                    'subject' => $subject,
-                ]);
-                return $this->processPreTicket($tenant, $from, $subject, $parsedEmail, $to);
+                // Não tem ticket_id no assunto - verificar se deve criar ticket normal ou pré-ticket
+                
+                // Buscar configuração do e-mail
+                $tenantEmail = TenantEmailAddress::where('tenant_id', $tenant->id)
+                    ->where('email', strtolower($to))
+                    ->where('active', true)
+                    ->first();
+                
+                // Se e-mail está configurado com service_id e priority_id, criar ticket normal
+                if ($tenantEmail && $tenantEmail->service_id && $tenantEmail->priority_id) {
+                    Log::info('E-mail configurado para criar ticket automaticamente', [
+                        'from' => $from,
+                        'to' => $to,
+                        'subject' => $subject,
+                        'service_id' => $tenantEmail->service_id,
+                        'priority_id' => $tenantEmail->priority_id,
+                    ]);
+                    return $this->processNewTicket($tenant, $from, $subject, $parsedEmail, $to);
+                } else {
+                    // E-mail não configurado ou incompleto - criar pré-ticket para triagem
+                    Log::info('E-mail sem configuração completa, criando pré-ticket para triagem', [
+                        'from' => $from,
+                        'to' => $to,
+                        'subject' => $subject,
+                        'has_tenant_email' => $tenantEmail !== null,
+                        'has_service' => $tenantEmail ? ($tenantEmail->service_id !== null) : false,
+                        'has_priority' => $tenantEmail ? ($tenantEmail->priority_id !== null) : false,
+                    ]);
+                    return $this->processPreTicket($tenant, $from, $subject, $parsedEmail, $to, 
+                        'E-mail não configurado para criar tickets automaticamente');
+                }
             }
         } catch (\Exception $e) {
             Log::error('Erro ao processar e-mail recebido', [
